@@ -83,8 +83,9 @@ class CropDialog(tk.Toplevel):
         self.bind("<Return>", self._ok)
         self.protocol("WM_DELETE_WINDOW", self._cancel)
 
+        self.attributes("-topmost", True)  # stay on top so it gets focus
         self.grab_set()      # modal while open
-        self.focus_set()
+        self.focus_force()   # force focus to this dialog (Windows)
         self.lift()
 
     # -- drag handling -------------------------------------------------------
@@ -256,7 +257,8 @@ class App:
         instr = ttk.Label(body,
             text="Hover an item in game, then press F9 (or the button).\n"
                  "The tooltip is cropped, copied, and auto-pasted into the trading site's posting form.\n"
-                 "Or press F10 to drag the region manually.",
+                 "Or press F10 to drag the region manually.\n"
+                 "When cropping manually: drag a rectangle, then press Enter to confirm.",
             wraplength=460, foreground="#444", justify="center")
         instr.pack(pady=(10, 0))
 
