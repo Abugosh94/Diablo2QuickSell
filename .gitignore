@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv/
+venv/
+
+# Build artifacts
+build/
+dist/
+*.exe
+
+# Logs and temp files
+*.log
+err.txt
+error.txt
+out.txt
+output.log
+output.txt
+tmp.txt
+tmp2.txt
+
+# Captures and screenshots
+captures/
+
+# Training data
+tooltip_training_data/
+
+# Model files (large binaries)
+*.pt
+
+# Config (user-specific)
+config.json
+
+# OS
+.DS_Store
+Thumbs.db

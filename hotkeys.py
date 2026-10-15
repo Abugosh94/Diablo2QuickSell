@@ -1,0 +1,415 @@
+"""Global hotkey handling via pynput + clipboard + Windows startup."""
+import os
+import threading
+
+from pynput import keyboard, mouse
+
+from config import load_config, TRADING_SITE
+
+
+def parse_combo(combo_str):
+    """'ctrl+alt+q' -> '<ctrl>+<alt>+q' for pynput GlobalHotKeys.
+
+    pynput requires angle brackets around all multi-char key names
+    (modifiers and special keys like <f8>); single characters stay bare.
+    """
+    parts = [p.strip().lower() for p in combo_str.split("+")]
+    normalized = []
+    for p in parts:
+        if p in ("ctrl", "control"):
+            normalized.append("<ctrl>")
+        elif p == "alt":
+            normalized.append("<alt>")
+        elif p == "shift":
+            normalized.append("<shift>")
+        elif p in ("cmd", "super", "win"):
+            normalized.append("<cmd>")
+        elif len(p) == 1:
+            normalized.append(p)
+        else:
+            normalized.append(f"<{p}>")
+    return "+".join(normalized)
+
+
+def validate_combo(combo_str):
+    """Return (ok, error_message) for a user-entered hotkey combo."""
+    try:
+        from pynput import keyboard
+        # GlobalHotKeys uses HotKey.parse internally
+        HotKey = keyboard.HotKey
+        HotKey.parse(parse_combo(combo_str))
+        return True, None
+    except Exception as e:
+        return False, str(e) or "invalid key combination"
+
+
+class HotkeyManager:
+    def __init__(self, handlers):
+        """handlers: dict of hotkey name -> callable (run in a thread)."""
+        self.cfg = load_config()
+        self.handlers = handlers
+        self.listener = None
+
+    def start(self):
+        mapping = {}
+        for name, combo in self.cfg["hotkeys"].items():
+            if name not in self.handlers:
+                continue
+            fn = self.handlers[name]
+
+            def _make(f):
+                def _run():
+                    threading.Thread(target=f, daemon=True).start()
+                return _run
+
+            mapping[parse_combo(combo)] = _make(fn)
+        self.listener = keyboard.GlobalHotKeys(mapping)
+        self.listener.daemon = True
+        self.listener.start()
+        return {k: v for k, v in self.cfg["hotkeys"].items() if k in self.handlers}
+
+    def stop(self):
+        if self.listener:
+            self.listener.stop()
+
+
+def copy_image_to_clipboard(pil_image, max_width=640, max_height=720):
+    """Copy a PIL image to the Windows clipboard for browser pasting.
+
+    BOTH formats are placed on the clipboard (EmptyClipboard clears the
+    rest), because not every browser reads the "PNG" clipboard format:
+      - "PNG" (compressed; Chromium browsers prefer it)
+      - CF_DIB bitmap (Firefox & co read this; the browser re-encodes it
+        to PNG when uploading)
+    Earlier attempts to ship only ONE format broke pasting in browsers
+    that don't read the other. The image carried by BOTH is identical and
+    already downscaled, so any re-encode stays small.
+
+    Sizing (forums reject oversized attachments):
+      - scaled to fit max_width x max_height (720p-height compliant)
+      - tier 1: full-color PNG when it fits the byte cap
+      - tier 2: 256-color palette PNG (halves the size, no visible loss)
+      - tier 3: progressive downscale until it fits
+      - cap: config key 'paste_image_max_kb', default 250 KB
+    """
+    try:
+        import win32clipboard
+        import io
+        from PIL import Image as _PILImage
+        from config import load_config
+        max_bytes = int(load_config().get("paste_image_max_kb", 250)) * 1024
+
+        img = pil_image
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        scale = min(max_width / img.width, max_height / img.height, 1.0)
+        if scale < 1.0:
+            img = img.resize((max(1, int(img.width * scale)),
+                              max(1, int(img.height * scale))),
+                             _PILImage.BILINEAR)   # fast; visually identical here
+
+        def _png_bytes(image, palette=False):
+            out = (image.convert("P", palette=_PILImage.ADAPTIVE, colors=256)
+                   if palette else image)
+            buf = io.BytesIO()
+            out.save(buf, "PNG")   # no optimize=True: 3-5x faster encode,
+            data = buf.getvalue()  # ~10% bigger - the size loop still
+            buf.close()           # enforces the byte cap via tier 2/3
+            return data
+
+        png = _png_bytes(img)                     # tier 1: full color
+        if len(png) > max_bytes:
+            pal = _png_bytes(img, palette=True)  # tier 2: palettized
+            if len(pal) <= max_bytes:
+                png = pal
+            else:                                # tier 3: shrink until fits
+                while True:
+                    png = _png_bytes(img, palette=True)
+                    if len(png) <= max_bytes or img.width <= 320:
+                        break
+                    new_w = int(img.width * 0.85)
+                    img = img.resize(
+                        (new_w, max(1, int(img.height * new_w / img.width))),
+                        _PILImage.BILINEAR)
+
+        # CF_DIB at the SAME final size (Firefox-style browsers read this
+        # and re-encode to PNG on upload; the source pixels are already
+        # downscaled so the re-encode stays small)
+        output = io.BytesIO()
+        img.save(output, "BMP")
+        dib = output.getvalue()[14:]  # strip BMP file header for CF_DIB
+        output.close()
+
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(
+            win32clipboard.RegisterClipboardFormat("PNG"), png)
+        win32clipboard.SetClipboardData(win32clipboard.CF_DIB, dib)
+        win32clipboard.CloseClipboard()
+        print(f"[hotkeys] clipboard PNG: {len(png) / 1024:.0f} KB "
+              f"at {img.width}x{img.height} (+ DIB {len(dib) / 1024:.0f} KB)")
+        return True
+    except Exception as e:
+        print(f"[hotkeys] Clipboard image copy failed: {e}")
+        return False
+
+
+def copy_text_to_clipboard(text):
+    try:
+        import win32clipboard
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(win32clipboard.CF_UNICODETEXT, text.encode("utf-16-le"))
+        win32clipboard.CloseClipboard()
+        return True
+    except Exception as e:
+        print(f"[hotkeys] Clipboard text copy failed: {e}")
+        return False
+
+
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+APP_NAME = "D2InventoryScanner"
+
+
+def set_start_with_windows(enabled, exe_path=None):
+    """Register/unregister the app in the HKCU Run key."""
+    try:
+        import winreg
+        import sys
+        if exe_path is None:
+            if getattr(sys, "frozen", False):
+                exe_path = sys.executable
+            else:
+                exe_path = f'"{sys.executable}" "{os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")}"'
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE)
+        try:
+            if enabled:
+                winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, exe_path)
+            else:
+                try:
+                    winreg.DeleteValue(key, APP_NAME)
+                except FileNotFoundError:
+                    pass
+        finally:
+            winreg.CloseKey(key)
+        return True
+    except Exception as e:
+        print(f"[hotkeys] Start-with-Windows failed: {e}")
+        return False
+
+
+def get_start_with_windows():
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_READ)
+        try:
+            winreg.QueryValueEx(key, APP_NAME)
+            return True
+        except FileNotFoundError:
+            return False
+        finally:
+            winreg.CloseKey(key)
+    except Exception:
+        return False
+
+
+def focus_browser_window(url_hint=None, timeout=4.0):
+    """Bring the trading-site browser tab to the foreground.
+
+    os.startfile() opens the URL in a NEW TAB, but if the browser window
+    was minimized / behind the game, the tab never becomes visible and the
+    auto-paste lands nowhere. This finds the top-level browser window
+    whose title contains a hint from the URL (domain or page title) and
+    restores + focuses it, so the quick-sell page is actually visible.
+
+    Best effort: returns True when a window was focused, False otherwise
+    (the paste logic still runs - if the user focuses the browser in time,
+    the paste lands).
+    """
+    import ctypes
+    import time
+    import os
+    from ctypes import wintypes
+
+    hints = []
+    if url_hint:
+        low = url_hint.lower()
+        # domain fragment, e.g. 'd2grail.com' from the LootLens URL
+        try:
+            from urllib.parse import urlparse
+            netloc = urlparse(low if "://" in low else "https://" + low).netloc
+            if netloc:
+                hints.append(netloc.replace("www.", "").split(":")[0])
+        except Exception:
+            pass
+        hints += ["diablo2", "diablo.trade", "diablo trade",
+                  "trade", "posting", "listing", "sell", "marketplace"]
+    else:
+        hints = ["diablo2", "diablo.trade", "diablo trade"]
+
+    try:
+        user32 = ctypes.windll.user32
+    except Exception as e:
+        print(f"[hotkeys] focus_browser_window unavailable: {e}")
+        return False
+
+    found = []
+    current_pid = os.getpid()
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def _enum_cb(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length == 0:
+            return True
+        buf = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buf, length + 1)
+        title = buf.value.strip().lower()
+        if title and any(h in title for h in hints):
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value != current_pid:
+                found.append(hwnd)
+        return True
+
+    try:
+        user32.EnumWindows(_enum_cb, 0)
+    except Exception:
+        return False
+    if not found:
+        return False
+
+    hwnd = found[0]
+    try:
+        # Maximize (not just restore) so the posting page is full-size and
+        # never left minimized behind the game.
+        SW_MAXIMIZE = 3
+        user32.ShowWindow(hwnd, SW_MAXIMIZE)
+        # Attach to the foreground thread so SetForegroundWindow succeeds
+        fg_thread = user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), None)
+        cur_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+        attached = False
+        try:
+            if fg_thread != cur_thread:
+                user32.AttachThreadInput(fg_thread, cur_thread, True)
+                attached = True
+            user32.SetForegroundWindow(hwnd)
+            user32.BringWindowToTop(hwnd)
+        finally:
+            if attached:
+                user32.AttachThreadInput(fg_thread, cur_thread, False)
+        # Wait until it is actually foreground (or timeout)
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            if user32.GetForegroundWindow() == hwnd:
+                return True
+            time.sleep(0.05)
+        return user32.GetForegroundWindow() == hwnd
+    except Exception as e:
+        print(f"[hotkeys] focus_browser_window failed: {e}")
+        return False
+
+def wait_for_left_click(timeout=None):
+    """Block until the user clicks the left mouse button.
+
+    Returns True if a click was received, False if timeout elapsed.
+    """
+    clicked = threading.Event()
+
+    def on_click(x, y, button, pressed):
+        if button == mouse.Button.left and pressed:
+            clicked.set()
+            return False  # stop listener
+
+    with mouse.Listener(on_click=on_click) as listener:
+        if timeout is not None:
+            if not clicked.wait(timeout):
+                return False
+        else:
+            clicked.wait()
+        return True
+
+
+def focus_and_paste(url=None, max_wait=4.0, min_settle=0.2, baseline_hwnd=None):
+    """Send Ctrl+V to the foreground window (the browser tab we just opened),
+    so the clipboard image is pasted into the site's posting form.
+
+    Two-stage wait:
+      1. Wait until the foreground is NOT the baseline window (the game at
+         quick-sell time). Callers pass the baseline captured BEFORE the
+         browser opened; if focus_browser_window() already brought the tab
+         front, this breaks immediately instead of waiting a full timeout.
+      2. Once the browser window is in front, wait for its PAGE to finish
+         loading: browsers set the window title from the loaded page, so a
+         non-empty title that stays UNCHANGED for 0.4s means the page (and
+         its paste handler) is ready.
+
+    Timings are deliberately tight (0.1s polls, 0.4s stability, 0.2s
+    settle) - the original 1.0+1.0s scheme added ~2s of dead time on
+    every quick-sell.
+
+    Best effort: if the browser never takes the foreground the paste fires
+    after max_wait anyway.
+
+    Runs in a background thread.
+    """
+    import ctypes
+    import time
+
+    VK_CONTROL, VK_V = 0x11, 0x56
+    KEYUP = 0x0002
+    try:
+        user32 = ctypes.windll.user32
+
+        def fg_hwnd():
+            return user32.GetForegroundWindow()
+
+        def fg_title():
+            hwnd = fg_hwnd()
+            if not hwnd:
+                return ""
+            buf = ctypes.create_unicode_buffer(512)
+            user32.GetWindowTextW(hwnd, buf, 512)
+            return buf.value.strip()
+
+        # 1) foreground switch (browser window opening)
+        start_hwnd = baseline_hwnd or fg_hwnd()   # the game, at quick-sell time
+        t0 = time.time()
+        while time.time() - t0 < max_wait:
+            cur = fg_hwnd()
+            if cur != start_hwnd and cur != 0:
+                break
+            time.sleep(0.1)
+
+        # 2) page readiness: stable, non-empty foreground window title
+        deadline = time.time() + max_wait
+        last_title, stable_since = None, None
+        while time.time() < deadline:
+            title = fg_title()
+            if title and title == last_title:
+                if stable_since is None:
+                    stable_since = time.time()
+                if time.time() - stable_since >= 0.4:
+                    break               # page loaded, paste handler ready
+            else:
+                last_title, stable_since = title, None
+            time.sleep(0.1)
+
+        # Only d2r.diablo.trade/marketplace/create requires the user to
+        # click "Sell" or "Buy" before the paste handler is active. Give the
+        # user up to 15 s to make that choice, then paste.
+        if url and "d2r.diablo.trade/marketplace/create" in url.lower():
+            print("[hotkeys] Waiting for user to click Sell/Buy before pasting...")
+            wait_for_left_click(timeout=15.0)
+
+        time.sleep(min_settle)           # final grace for the paste handler
+        user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        user32.keybd_event(VK_V, 0, 0, 0)
+        user32.keybd_event(VK_V, 0, KEYUP, 0)
+        user32.keybd_event(VK_CONTROL, 0, KEYUP, 0)
+        time.sleep(0.2)          # extra delay for slow PCs
+        return True
+    except Exception as e:
+        print(f"[hotkeys] Auto-paste failed: {e}")
+        return False
