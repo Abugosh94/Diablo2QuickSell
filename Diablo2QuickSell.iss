@@ -1,10 +1,10 @@
-; D2InventoryScanner Installer Script
-; Compile with: iscc D2InventoryScanner.iss
+; Diablo2QuickSell Installer Script
+; Compile with: iscc Diablo2QuickSell.iss
 
-#define MyAppName "D2 Inventory Scanner"
+#define MyAppName "Diablo2QuickSell"
 #define MyAppVersion "0.02"
-#define MyAppPublisher "D2 Inventory Scanner"
-#define MyAppExeName "D2InventoryScanner.exe"
+#define MyAppPublisher "Diablo2QuickSell"
+#define MyAppExeName "Diablo2QuickSell.exe"
 
 [Setup]
 AppId={{8D3F2A1B-4C5E-6F7G-8H9I-0J1K2L3M4N5O}}
@@ -15,7 +15,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=installer
-OutputFile=D2InventoryScanner_Setup_{#MyAppVersion}.exe
+OutputFile=Diablo2QuickSell_Setup_{#MyAppVersion}.exe
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -28,7 +28,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; The main executable
-Source: "dist\D2InventoryScanner.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\Diablo2QuickSell.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; The YOLO model file (bundled alongside the exe)
 Source: "tooltip_best_v6.pt"; DestDir: "{app}"; Flags: ignoreversion
 

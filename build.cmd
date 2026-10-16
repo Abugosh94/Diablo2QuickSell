@@ -24,10 +24,13 @@ rem                  (torchvision provides NMS operator used by YOLO inference)
 "C:\Users\Asad\AppData\Roaming\Python\Python311\Scripts\pyinstaller.exe" ^
   --noconfirm --clean --onefile --noconsole ^
   --upx-dir "C:\upx-5.2.1-win64" ^
-  --name D2InventoryScanner ^
+  --name Diablo2QuickSell ^
   --add-data "tooltip_best_v6.pt;." ^
+  --add-data "Logo.png;." ^
   --collect-all ultralytics ^
   --collect-all torchvision ^
+  --collect-all pystray ^
+  --collect-all PIL ^
   main.py >> build_out.log 2>&1
 
 echo BUILD_EXIT_CODE=%ERRORLEVEL% >> build_out.log

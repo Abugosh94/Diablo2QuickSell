@@ -168,7 +168,7 @@ def copy_text_to_clipboard(text):
 
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-APP_NAME = "D2InventoryScanner"
+APP_NAME = "Diablo2QuickSell"
 
 
 def set_start_with_windows(enabled, exe_path=None):

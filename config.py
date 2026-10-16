@@ -52,6 +52,7 @@ DEFAULT_CONFIG = {
     "paste_image_max_kb": 250,  # max size of the clipboard PNG pasted to trade sites
     "minimize_to_tray": True,  # GUI: close button hides to system tray
     "close_behavior": "exit",  # 'exit' | 'minimize'
+    "close_behavior_prompted": False,  # first-close: ask minimize vs exit
     "start_with_windows": False,  # register in HKCU Run key
     "regions": {
         "_comment": "Pixel regions as normalized 0..1 fractions of the game window. Tune for your resolution.",

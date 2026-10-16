@@ -21,6 +21,15 @@ except Exception as _e:  # pragma: no cover
 import tkinter as tk
 from tkinter import ttk, messagebox
 
+# pystray + Pillow imported at module level so PyInstaller bundles them
+# into the onefile exe (used lazily in _minimize_to_tray).
+try:
+    import pystray
+    from PIL import Image
+except Exception:
+    pystray = None
+    Image = None
+
 from config import (load_config, save_config, app_dir, get_trading_url,
                     TRADING_SITE_LABELS)
 from hotkeys import HotkeyManager, copy_image_to_clipboard, focus_browser_window
@@ -31,12 +40,27 @@ from scanner import InventoryScanner
 if getattr(sys, "frozen", False):
     try:
         import win32event
-        _SINGLE_INSTANCE_MUTEX = win32event.CreateMutex(None, False, "D2InventoryScanner_SingleInstanceMutex")
+        _SINGLE_INSTANCE_MUTEX = win32event.CreateMutex(None, False, "Diablo2QuickSell_SingleInstanceMutex")
     except Exception:
         pass
 
-APP_TITLE = "D2 Quick-Sell"
+APP_TITLE = "Diablo2QuickSell"
 APP_VERSION = "0.02"
+
+
+def resource_path(relative_path):
+    """Get the absolute path to a resource, working for both source and
+    PyInstaller onefile exe. In a frozen exe, data files bundled with
+    --add-data live under sys._MEIPASS; otherwise they're next to the
+    script/exe.
+    """
+    if getattr(sys, "frozen", False):
+        base = getattr(sys, "_MEIPASS", None)
+        if base and os.path.exists(os.path.join(base, relative_path)):
+            return os.path.join(base, relative_path)
+        return os.path.join(os.path.dirname(sys.executable), relative_path)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        relative_path)
 
 
 class CropDialog(tk.Toplevel):
@@ -1033,10 +1057,13 @@ class App:
     # ------------------------------------------------------------- Tray
 
     def _minimize_to_tray(self):
+        if pystray is None or Image is None:
+            self._set_status("Tray icon unavailable (pystray/Pillow not in exe); minimizing to taskbar instead.")
+            self.root.iconify()
+            return
         try:
-            import pystray
-            from PIL import Image
             img = Image.new("RGB", (64, 64), (200, 120, 40))
+            self._tray_image = img
             self.root.withdraw()
             if self.tray is None:
                 menu = pystray.Menu(
@@ -1044,11 +1071,14 @@ class App:
                     pystray.MenuItem("Quit", self._quit_from_tray),
                 )
                 self.tray = pystray.Icon("d2scan", img, APP_TITLE, menu)
+                self.tray.visible = True
                 threading.Thread(target=self.tray.run, daemon=True).start()
+            else:
+                self.tray.visible = True
         except Exception as e:
-            print(f"[gui] tray unavailable ({e}); minimizing normally")
+            _log_error("tray failed: " + str(e))
+            self._set_status("Tray unavailable (" + str(e) + "); minimizing to taskbar.")
             self.root.iconify()
-
     def _show_from_tray(self, icon=None, item=None):
         self.root.after(0, lambda: self.root.deiconify())
 
@@ -1058,7 +1088,38 @@ class App:
         self.root.after(0, self._shutdown)
 
     def _on_close(self):
+        # First-time close: ask the user whether to minimize to tray or exit.
+        if not self.cfg.get("close_behavior_prompted", False):
+            self._prompt_close_behavior()
+            return  # the prompt callback acts on the user's choice
+
         if self.cfg.get("close_behavior", "minimize") == "minimize":
+            self._minimize_to_tray()
+        else:
+            self._shutdown()
+
+    def _prompt_close_behavior(self):
+        """First-time exit: prompt the user to choose minimize-to-tray or exit."""
+        choice = messagebox.askyesnocancel(
+            "Diablo2QuickSell - Close behavior",
+            "When you close the window, what would you like to do?\n\n"
+            "  Yes  → Minimize to system tray (app keeps running in background)\n"
+            "  No   → Exit the app completely\n"
+            "  Cancel → Keep the window open",
+            icon="question",
+            parent=self.root,
+        )
+        if choice is None:
+            # Cancel - keep the window open, do nothing
+            return
+        if choice:  # Yes → minimize to tray
+            self.cfg["close_behavior"] = "minimize"
+        else:  # No → exit
+            self.cfg["close_behavior"] = "exit"
+        self.cfg["close_behavior_prompted"] = True
+        save_config(self.cfg)
+        # Act on the user's choice
+        if self.cfg["close_behavior"] == "minimize":
             self._minimize_to_tray()
         else:
             self._shutdown()

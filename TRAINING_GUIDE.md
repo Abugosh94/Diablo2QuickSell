@@ -5,7 +5,7 @@
 ### 1. Capture New Tooltip Images
 ```bash
 # Method 1: Use the EXE to capture
-.\D2InventoryScanner.exe --test inventory
+.\Diablo2QuickSell.exe --test inventory
 ```
 
 This captures tooltips and saves to `captures/` folder.

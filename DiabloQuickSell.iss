@@ -1,27 +1,28 @@
 [Setup]
-AppName=Diablo Quick-Sell
+AppName=Diablo2QuickSell
 AppVersion=1.0
 DefaultDirName={pf}\DiabloQuickSell
-DefaultGroupName=Diablo Quick-Sell
+DefaultGroupName=Diablo2QuickSell
 OutputDir=user:output
-OutputBaseFilename=DiabloQuickSellSetup
+OutputBaseFilename=Diablo2QuickSellSetup
 Compression=lzma2
 SolidCompression=yes
 
 [Files]
-Source: "dist\D2InventoryScanner.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\Diablo2QuickSell.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; Ensure the captures folder exists next to the exe
-Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "D2InventoryScanner.exe"
+Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "Diablo2QuickSell.exe"
 
 [Dirs]
 Name: "{app}\captures"; Flags: uninsneveruninstall
 
 [Icons]
-Name: "{group}\Diablo Quick-Sell"; Filename: "{app}\D2InventoryScanner.exe"
-Name: "{desktop}\Diablo Quick-Sell"; Filename: "{app}\D2InventoryScanner.exe"
+Name: "{group}\Diablo2QuickSell"; Filename: "{app}\Diablo2QuickSell.exe"
+Name: "{desktop}\Diablo2QuickSell"; Filename: "{app}\Diablo2QuickSell.exe"
 
 [Run]
-Filename: "{app}\D2InventoryScanner.exe"; Description: "Launch Diablo Quick-Sell"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Diablo2QuickSell.exe"; Description: "Launch Diablo2QuickSell"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\captures"
+

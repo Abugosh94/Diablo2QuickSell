@@ -1,4 +1,4 @@
-﻿"""D2 Quick-Sell - tooltip crop + auto-post to trading sites.
+﻿"""Diablo2QuickSell - tooltip crop + auto-post to trading sites.
 
 Hover an item in game, press F9: the YOLO tooltip detector crops the
 tooltip, copies it to the clipboard, and opens your chosen trading site
@@ -151,19 +151,19 @@ def main():
     import win32event
     import win32api
 
-    MUTEX_NAME = "D2InventoryScanner_SingleInstanceMutex"
+    MUTEX_NAME = "Diablo2QuickSell_SingleInstanceMutex"
     mutex = win32event.CreateMutex(None, False, MUTEX_NAME)
     if win32api.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
         import tkinter as tk
         from tkinter import messagebox
         root = tk.Tk()
         root.withdraw()
-        messagebox.showinfo("D2 Quick-Sell",
-                            "Another instance of D2 Quick-Sell is already running.")
+        messagebox.showinfo("Diablo2QuickSell",
+                            "Another instance of Diablo2QuickSell is already running.")
         root.destroy()
         return 1
 
-    ap = argparse.ArgumentParser(description="D2 Quick-Sell")
+    ap = argparse.ArgumentParser(description="Diablo2QuickSell")
     ap.add_argument("--console", action="store_true",
                     help="run in console hotkey mode instead of the GUI")
     args = ap.parse_args()
