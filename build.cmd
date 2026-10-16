@@ -24,6 +24,7 @@ rem                  (torchvision provides NMS operator used by YOLO inference)
 "C:\Users\Asad\AppData\Roaming\Python\Python311\Scripts\pyinstaller.exe" ^
   --noconfirm --clean --onefile --noconsole ^
   --upx-dir "C:\upx-5.2.1-win64" ^
+  --icon "Logo.ico" ^
   --name Diablo2QuickSell ^
   --add-data "tooltip_best_v6.pt;." ^
   --add-data "Logo.png;." ^

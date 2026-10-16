@@ -1062,16 +1062,25 @@ class App:
             self.root.iconify()
             return
         try:
-            img = Image.new("RGB", (64, 64), (200, 120, 40))
-            self._tray_image = img
+            # Load Logo.png as the tray icon; fall back to a solid-color
+            # image if the file can't be found (source runs) or bundled.
+            try:
+                img = Image.open(resource_path("Logo.png")).convert("RGBA")
+                img = img.resize((32, 32), Image.LANCZOS)
+            except Exception:
+                img = Image.new("RGB", (32, 32), (200, 120, 40))
+            self._tray_image = img  # keep reference so it isn't GC'd
             self.root.withdraw()
             if self.tray is None:
                 menu = pystray.Menu(
                     pystray.MenuItem("Show", self._show_from_tray, default=True),
                     pystray.MenuItem("Quit", self._quit_from_tray),
                 )
-                self.tray = pystray.Icon("d2scan", img, APP_TITLE, menu)
-                self.tray.visible = True
+                # visible=True in the constructor so pystray registers the
+                # icon when its Win32 window handle is created inside
+                # tray.run(). Setting it as a property afterward is too late.
+                self.tray = pystray.Icon("d2scan", img, APP_TITLE, menu,
+                                         visible=True)
                 threading.Thread(target=self.tray.run, daemon=True).start()
             else:
                 self.tray.visible = True
@@ -1079,6 +1088,7 @@ class App:
             _log_error("tray failed: " + str(e))
             self._set_status("Tray unavailable (" + str(e) + "); minimizing to taskbar.")
             self.root.iconify()
+
     def _show_from_tray(self, icon=None, item=None):
         self.root.after(0, lambda: self.root.deiconify())
 
