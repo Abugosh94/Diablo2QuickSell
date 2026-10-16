@@ -23,6 +23,7 @@ rem  --collect-all  : ultralytics and torchvision need their files bundled
 rem                  (torchvision provides NMS operator used by YOLO inference)
 "C:\Users\Asad\AppData\Roaming\Python\Python311\Scripts\pyinstaller.exe" ^
   --noconfirm --clean --onefile --noconsole ^
+  --upx-dir "C:\upx-5.2.1-win64" ^
   --name D2InventoryScanner ^
   --add-data "tooltip_best_v6.pt;." ^
   --collect-all ultralytics ^
