@@ -377,6 +377,8 @@ class App:
                         variable=self.manual_override_var,
                         command=self._on_toggle_manual_override
                         ).pack(anchor="w", padx=6, pady=(2, 6))
+        ttk.Button(opt, text="Apply", command=self.on_apply_options).pack(
+            anchor="w", padx=6, pady=(0, 6))
         # Capture source: which window/screen the tool captures from
         src_frame = ttk.LabelFrame(settings_tab, text="Capture source")
         src_frame.grid(row=2, column=0, sticky="ew", **pad)
@@ -863,6 +865,9 @@ class App:
         from hotkeys import set_start_with_windows
         self.cfg["close_behavior"] = self.close_var.get()
         self.cfg["minimize_to_tray"] = self.close_var.get() == "minimize"
+        # User explicitly set close behavior, so the first-time prompt
+        # should not re-ask on next window close.
+        self.cfg["close_behavior_prompted"] = True
         self.cfg["start_with_windows"] = bool(self.startup_var.get())
         self.cfg["manual_screenshot_override"] = bool(self.manual_override_var.get())
         save_config(self.cfg)
