@@ -211,6 +211,11 @@ class App:
 
     def _build_ui(self):
         self.root = tk.Tk()
+        # Apply Logo.ico to the window title bar and taskbar icon
+        try:
+            self.root.iconbitmap(resource_path("Logo.ico"))
+        except Exception:
+            pass
         self.root.title(f"{APP_TITLE} v{APP_VERSION}")
         self.root.geometry("520x560")
         self.root.minsize(460, 480)
