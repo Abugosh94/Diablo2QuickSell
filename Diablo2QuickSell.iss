@@ -5,8 +5,8 @@
 #define MyAppName "D2QuickSell"
 #define MyAppVersion "0.1"
 #define MyAppPublisher "Droxea"
-#define MyAppExeName "MyProg-x64.exe"
-#define MyAppAssocName "D2InventoryScanner File"
+#define MyAppExeName "Diablo2QuickSell.exe"
+#define MyAppAssocName MyAppName + " File"
 #define MyAppAssocExt ".myp"
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
 #define DoubleAmp(Value) StringChange(Value, "&", "&&")
@@ -15,12 +15,12 @@
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-AppId={{70F86786-E0FC-4D20-97EA-89153D5E3A63}
+AppId={{6F589C60-4B4A-4065-8AF3-AC05CF4BE26E}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 ;AppVerName={cm:NameAndVersion,{#EscapeConstArgument(MyAppName)},{#EscapeConstArgument(MyAppVersion)}}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\D2InventoryScanner
+DefaultDirName=C:\{#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ; "ArchitecturesAllowed=x64compatible" specifies that Setup cannot run on anything but x64 and Windows 11 on Arm.
 ArchitecturesAllowed=x64compatible
@@ -33,7 +33,6 @@ ChangesAssociations=yes
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=C:\Users\Asad\Desktop
 OutputBaseFilename=D2QuickSell
 SetupIconFile=D:\Addon test\Logo.ico
@@ -47,7 +46,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "C:\Program Files\Inno Setup 7\Examples\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "D:\Addon test\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files.
 
 [Registry]
