@@ -16,6 +16,7 @@ def _show_cursor():
     import win32gui
     win32gui.ShowCursor(True)
 import os
+import sys
 import threading
 import time
 
@@ -197,8 +198,18 @@ last_yolo_capture = {}
 _TOOLTIP_MODEL = None
 _TOOLTIP_MODEL_FAILED = False
 _TOOLTIP_MODEL_LOCK = threading.Lock()
-_TOOLTIP_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                   "tooltip_best_v6.pt")
+# In a PyInstaller onefile exe, sys._MEIPASS is the temp extraction folder
+# where bundled data files (like tooltip_best_v6.pt) live at runtime.
+# Fallback: also check next to the exe (in case --add-data didn't bundle it).
+if getattr(sys, "frozen", False):
+    _BASE_DIR = sys._MEIPASS
+    _exe_dir = os.path.dirname(sys.executable)
+    if not os.path.exists(os.path.join(_BASE_DIR, "tooltip_best_v6.pt")):
+        if os.path.exists(os.path.join(_exe_dir, "tooltip_best_v6.pt")):
+            _BASE_DIR = _exe_dir
+else:
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_TOOLTIP_MODEL_PATH = os.path.join(_BASE_DIR, "tooltip_best_v6.pt")
 
 
 def get_tooltip_model():
@@ -232,7 +243,13 @@ def get_tooltip_model():
                 pass  # warm-up is best-effort
         except Exception as e:
             _TOOLTIP_MODEL_FAILED = True
-            print(f"[yolo] model load FAILED ({e}) - using legacy detector")
+            msg = f"[yolo] model load FAILED ({e}) - using legacy detector"
+            print(msg)
+            try:
+                from gui import _log_error
+                _log_error(msg)
+            except Exception:
+                pass
     return _TOOLTIP_MODEL
 
 

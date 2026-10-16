@@ -21,8 +21,12 @@ class InventoryScanner:
         try:
             if get_tooltip_model() is not None:
                 img, _conf = capture_tooltip_yolo()
-                return img
+                if img is not None:
+                    return img
+                # YOLO ran but found nothing - fall back to legacy detector
+                print("[capture] YOLO returned no crop - falling back to legacy")
         except Exception as e:
             print(f"[capture] YOLO path failed ({e}) - trying legacy detector")
         img, _origin = capture_tooltip_near_cursor()
         return img
+

@@ -19,12 +19,14 @@ rem  --onefile      : single exe at dist\D2InventoryScanner.exe
 rem  --noconsole    : windowless app (GUI/tkinter, matches main.py design)
 rem  --add-data     : model at bundle ROOT, because main.py loads it from
 rem                   os.path.dirname(__file__) (the _MEIPASS root)
-rem  --collect-all  : ultralytics needs its cfg yaml files bundled
+rem  --collect-all  : ultralytics and torchvision need their files bundled
+rem                  (torchvision provides NMS operator used by YOLO inference)
 "C:\Users\Asad\AppData\Roaming\Python\Python311\Scripts\pyinstaller.exe" ^
   --noconfirm --clean --onefile --noconsole ^
   --name D2InventoryScanner ^
   --add-data "tooltip_best_v6.pt;." ^
   --collect-all ultralytics ^
+  --collect-all torchvision ^
   main.py >> build_out.log 2>&1
 
 echo BUILD_EXIT_CODE=%ERRORLEVEL% >> build_out.log

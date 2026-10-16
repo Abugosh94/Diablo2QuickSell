@@ -6,6 +6,7 @@ where the image is auto-pasted into the posting form.
 """
 import os
 import subprocess
+import sys
 import threading
 
 # torch must be in the process before winocr (imported by ocr.py) - see
@@ -24,6 +25,15 @@ from config import (load_config, save_config, app_dir, get_trading_url,
                     TRADING_SITE_LABELS)
 from hotkeys import HotkeyManager, copy_image_to_clipboard, focus_browser_window
 from scanner import InventoryScanner
+
+# Keep a reference to the single-instance mutex so it isn't garbage-collected
+# and released while the app is running.
+if getattr(sys, "frozen", False):
+    try:
+        import win32event
+        _SINGLE_INSTANCE_MUTEX = win32event.CreateMutex(None, False, "D2InventoryScanner_SingleInstanceMutex")
+    except Exception:
+        pass
 
 APP_TITLE = "D2 Quick-Sell"
 APP_VERSION = "0.02"

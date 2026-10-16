@@ -146,6 +146,23 @@ class App:
 
 
 def main():
+    # --- Single-instance enforcement -----------------------------------------
+    # Prevent multiple copies of the exe from running at the same time.
+    import win32event
+    import win32api
+
+    MUTEX_NAME = "D2InventoryScanner_SingleInstanceMutex"
+    mutex = win32event.CreateMutex(None, False, MUTEX_NAME)
+    if win32api.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showinfo("D2 Quick-Sell",
+                            "Another instance of D2 Quick-Sell is already running.")
+        root.destroy()
+        return 1
+
     ap = argparse.ArgumentParser(description="D2 Quick-Sell")
     ap.add_argument("--console", action="store_true",
                     help="run in console hotkey mode instead of the GUI")
