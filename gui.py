@@ -1146,6 +1146,8 @@ class App:
         else:  # No → exit
             self.cfg["close_behavior"] = "exit"
         self.cfg["close_behavior_prompted"] = True
+        # Keep the settings radio buttons in sync with the applied behavior
+        self.close_var.set(self.cfg["close_behavior"])
         save_config(self.cfg)
         # Act on the user's choice
         if self.cfg["close_behavior"] == "minimize":
