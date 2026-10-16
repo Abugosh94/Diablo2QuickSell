@@ -25,10 +25,11 @@ from tkinter import ttk, messagebox
 # into the onefile exe (used lazily in _minimize_to_tray).
 try:
     import pystray
-    from PIL import Image
+    from PIL import Image, ImageTk
 except Exception:
     pystray = None
     Image = None
+    ImageTk = None
 
 from config import (load_config, save_config, app_dir, get_trading_url,
                     TRADING_SITE_LABELS)
@@ -45,7 +46,7 @@ if getattr(sys, "frozen", False):
         pass
 
 APP_TITLE = "Diablo2QuickSell"
-APP_VERSION = "0.02"
+APP_VERSION = "0.1"
 
 
 def resource_path(relative_path):
@@ -222,7 +223,15 @@ class App:
 
         pad = {"padx": 10, "pady": 5}
 
-        # Version label at top right
+        # App icon + version label at top right
+        try:
+            _logo_img = Image.open(resource_path("Logo.png")).resize((16, 16), Image.LANCZOS)
+            _logo_photo = ImageTk.PhotoImage(_logo_img)
+            _logo_label = ttk.Label(self.root, image=_logo_photo)
+            _logo_label.image = _logo_photo  # keep reference
+            _logo_label.place(relx=1.0, x=-30, y=5, anchor="ne")
+        except Exception:
+            pass
         version_label = ttk.Label(self.root, text=f"v{APP_VERSION}", font=("Segoe UI", 8))
         version_label.place(relx=1.0, x=-10, y=5, anchor="ne")
 
