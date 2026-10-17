@@ -301,7 +301,6 @@ class App:
             selectforeground=[("readonly", entry_fg)],
         )
 
-        # ------------------------------------------------------------------ Buttons
         # Primary action button - solid accent color, pill-shaped via generous
         # padding, hover/pressed states, bold text
         style.configure(
@@ -312,8 +311,8 @@ class App:
             focuscolor=accent,
             borderwidth=0,
             relief="flat",
-            padding=(22, 11),
-            font=("Segoe UI", 10, "bold"),
+            padding=(16, 8),
+            font=("Segoe UI", 9, "bold"),
         )
         style.map(
             "TButton",
@@ -334,7 +333,7 @@ class App:
             focuscolor=border,
             borderwidth=1,
             relief="flat",
-            padding=(20, 8),
+            padding=(14, 6),
             font=("Segoe UI", 9, "bold"),
         )
         style.map(
