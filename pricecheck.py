@@ -437,9 +437,10 @@ class PriceChecker:
                 }
             ]
         }
+        model = self.cfg.setdefault("price_check", {}).get("gemini_model", "gemini-1.5-pro")
         url = (
             "https://generativelanguage.googleapis.com/v1/models/"
-            "gemini-1.5-flash:generateContent?key=" + api_key
+            + model + ":generateContent?key=" + api_key
         )
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(

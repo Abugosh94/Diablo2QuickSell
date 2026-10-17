@@ -897,6 +897,12 @@ class App:
             command=self._on_pc_api_show_toggle,
         )
         self.pc_api_show_cb.grid(row=0, column=2)
+        self.pc_api_fetch_btn = ttk.Button(
+            self.pc_api_key_frame,
+            text="Fetch Models",
+            command=self._on_pc_fetch_models,
+        )
+        self.pc_api_fetch_btn.grid(row=0, column=3, padx=(6, 0))
         self.pc_api_key_frame.grid_remove()  # hidden until API mode selected
 
         ttk.Radiobutton(
@@ -958,6 +964,20 @@ class App:
             state="readonly",
         )
         self.pc_new_chat_combo.grid(row=4, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+
+        # Gemini model selector (shown only in API mode + Gemini selected)
+        self.pc_model_var = tk.StringVar(
+            value=self.price_checker.get_config().get("gemini_model", "gemini-1.5-pro")
+        )
+        self.pc_model_label = ttk.Label(self.pc_mode_frame, text="Gemini model:")
+        self.pc_model_combo = ttk.Combobox(
+            self.pc_mode_frame,
+            textvariable=self.pc_model_var,
+            values=[],  # populated by fetching from API
+            width=18,
+            state="readonly",
+        )
+        # Will be gridded/removed dynamically in _on_pc_mode_changed and _on_pc_ai_tool_changed
 
         # Key bind display
         self.pc_keybind_var = tk.StringVar()
@@ -2001,11 +2021,57 @@ class App:
         else:
             self.pc_api_key_frame.grid_remove()
             self.pc_result_frame.grid_forget()
+        # Model selector only valid in API mode
+        self._on_pc_ai_tool_changed()
 
     def _on_pc_api_show_toggle(self):
         """Toggle API key visibility in the Price Check entry."""
         show = self.pc_api_show_var.get()
         self.pc_api_key_entry.configure(show="" if show else "*")
+
+    def _on_pc_fetch_models(self):
+        """Fetch available Gemini models using the entered API key."""
+        import urllib.request, urllib.error, json
+        api_key = self.pc_api_key_var.get().strip()
+        if not api_key:
+            self.pc_status_var.set("Enter an API key first.")
+            return
+        self.pc_status_var.set("Fetching models from Gemini API...")
+        self.root.update_idletasks()
+
+        def _fetch():
+            url = f"https://generativelanguage.googleapis.com/v1/models?key={api_key}"
+            try:
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                models = [m["name"].replace("models/", "") for m in data.get("models", []) if "generateContent" in m.get("supportedGenerationMethods", [])]
+                models.sort()
+                if not models:
+                    models = ["gemini-1.5-pro", "gemini-1.5-flash"]
+                self.root.after(0, lambda: self._on_models_fetched(models, None))
+            except urllib.error.HTTPError as e:
+                body = e.read().decode("utf-8")
+                self.root.after(0, lambda: self._on_models_fetched([], f"HTTP {e.code}: {body[:120]}"))
+            except Exception as e:
+                self.root.after(0, lambda: self._on_models_fetched([], str(e)))
+
+        import threading
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def _on_models_fetched(self, models, error):
+        """Callback after model fetch completes."""
+        if error:
+            self.pc_status_var.set(f"Model fetch failed: {error}")
+            self.pc_model_combo["values"] = []
+        else:
+            self.pc_model_combo["values"] = models
+            # Keep current selection if still valid, else pick first
+            current = self.pc_model_var.get()
+            if current not in models and models:
+                self.pc_model_var.set(models[0])
+                self.cfg.setdefault("price_check", {})["gemini_model"] = models[0]
+            self.pc_status_var.set(f"Loaded {len(models)} models.")
 
     def _on_pc_add_marketplace(self):
         """Add a user-typed marketplace to the listbox (max 5)."""
@@ -2046,12 +2112,31 @@ class App:
             self.pc_custom_days_label.pack_forget()
 
     def _on_pc_ai_tool_changed(self):
-        """Open a dialog to add a custom AI tool when selected from dropdown."""
+        """Open a dialog to add a custom AI tool when selected from dropdown.
+        Also show/hide the Gemini model selector based on the AI tool choice."""
         selected = self.pc_ai_tool_var.get()
         if selected == "Add custom AI tool...":
             # Reset selection so user can pick a real tool after adding custom one
             self.pc_ai_tool_var.set(self.price_checker.get_config().get("ai_tool", "gemini"))
             self._open_custom_ai_tool_dialog()
+            return
+
+        # Model selector only shown in API mode + Gemini selected
+        is_api = self.pc_mode_var.get() == "api"
+        is_gemini = selected == "Gemini"
+        if is_api and is_gemini:
+            self.pc_model_label.grid(row=5, column=0, sticky="e", padx=6, pady=3)
+            self.pc_model_combo.grid(row=5, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+            # Save the selected model to config
+            self.cfg.setdefault("price_check", {})["gemini_model"] = self.pc_model_var.get()
+        else:
+            self.pc_model_label.grid_remove()
+            self.pc_model_combo.grid_remove()
+
+    def _on_pc_model_changed(self, *args):
+        """Save the selected Gemini model to config."""
+        self.cfg.setdefault("price_check", {})["gemini_model"] = self.pc_model_var.get()
+        save_config(self.cfg)
 
     def _open_custom_ai_tool_dialog(self):
         """Open a modal dialog to add a custom AI tool (name + URL + keybind)."""
