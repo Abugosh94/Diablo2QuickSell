@@ -108,6 +108,14 @@ class RoundedButton(tk.Canvas):
         if state == "disabled":
             self.enabled = False
 
+        # Calculate button size from text
+        self._min_width, self._min_height = self._measure_text(font)
+        if width == 0:
+            width = self._min_width
+        if height == 32:
+            height = self._min_height
+        self.configure(width=width, height=height)
+
         # Bind events
         self.bind("<Enter>", self._on_enter)
         self.bind("<Leave>", self._on_leave)
@@ -116,6 +124,15 @@ class RoundedButton(tk.Canvas):
         self.bind("<Configure>", self._on_resize)
 
         self._draw()
+
+    def _measure_text(self, font):
+        """Calculate button size from text."""
+        import tkinter.font as tkfont
+        font_obj = tkfont.Font(font=font)
+        text_width = font_obj.measure(self.text) if self.text else 50
+        min_width = max(text_width + 32, 100)  # padding + min width
+        min_height = max(font_obj.metrics("linespace") + 16, 32)
+        return min_width, min_height
 
     def _current_bg(self):
         if not self.enabled:
