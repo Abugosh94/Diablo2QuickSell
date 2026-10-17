@@ -2021,8 +2021,10 @@ class App:
         else:
             self.pc_api_key_frame.grid_remove()
             self.pc_result_frame.grid_forget()
-        # Model selector only valid in API mode
-        self._on_pc_ai_tool_changed()
+        # Model selector only valid in API mode (guard for init-time call
+        # before pc_model_label is created)
+        if hasattr(self, "pc_model_label"):
+            self._on_pc_ai_tool_changed()
 
     def _on_pc_api_show_toggle(self):
         """Toggle API key visibility in the Price Check entry."""
