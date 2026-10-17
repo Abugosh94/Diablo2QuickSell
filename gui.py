@@ -218,6 +218,72 @@ class App:
         self._start_hotkeys()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
+    # ------------------------------------------------------------------ Theme
+
+    def _apply_theme(self):
+        """Apply light/dark theme colors to all ttk widgets."""
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        if self.theme_var.get() == "dark":
+            bg = "#2d2d2d"
+            fg = "#e0e0e0"
+            select_bg = "#3d3d3d"
+            select_fg = "#ffffff"
+            accent = "#007acc"
+            entry_bg = "#3a3a3a"
+            entry_fg = "#ffffff"
+            disabled_fg = "#888888"
+            border = "#555555"
+            self.root.configure(bg=bg)
+        else:
+            bg = "#ffffff"
+            fg = "#000000"
+            select_bg = "#e8f1fe"
+            select_fg = "#000000"
+            accent = "#007acc"
+            entry_bg = "#ffffff"
+            entry_fg = "#000000"
+            disabled_fg = "#aaaaaa"
+            border = "#cccccc"
+            self.root.configure(bg=bg)
+
+        # Common widget styles
+        style.configure("TFrame", background=bg)
+        style.configure("TLabel", background=bg, foreground=fg)
+        style.configure("TLabelframe", background=bg, foreground=fg, bordercolor=border)
+        style.configure("TLabelframe.Label", background=bg, foreground=fg)
+        style.configure("TEntry", fieldbackground=entry_bg, foreground=entry_fg, bordercolor=border, insertcolor=fg)
+        style.configure("TCombobox", fieldbackground=entry_bg, foreground=entry_fg, bordercolor=border, insertcolor=fg)
+        style.configure("TButton", background=accent, foreground="#ffffff", bordercolor=accent)
+        style.map("TButton", background=[("active", "#005a9e"), ("pressed", "#004a80")])
+        style.configure("TRadiobutton", background=bg, foreground=fg)
+        style.map("TRadiobutton", background=[("active", bg), ("selected", bg)])
+        style.configure("TCheckbutton", background=bg, foreground=fg)
+        style.map("TCheckbutton", background=[("active", bg)])
+        style.configure("TNotebook", background=bg, bordercolor=border)
+        style.configure("TNotebook.Tab", background=bg, foreground=fg, bordercolor=border)
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", accent), ("active", select_bg)],
+            foreground=[("selected", "#ffffff"), ("active", fg)],
+        )
+
+        # Text widget (result area) - configure manually since ttk doesn't cover it
+        self.root.option_add("*Text.background", entry_bg)
+        self.root.option_add("*Text.foreground", entry_fg)
+        self.root.option_add("*Text.insertBackground", fg)
+        self.root.option_add("*Text.selectBackground", select_bg)
+        self.root.option_add("*Text.selectForeground", select_fg)
+
+    def _toggle_theme(self):
+        """Toggle between light and dark theme."""
+        new_theme = "dark" if self.theme_var.get() == "light" else "light"
+        self.theme_var.set(new_theme)
+        self.cfg["theme"] = new_theme
+        save_config(self.cfg)
+        self._apply_theme()
+
     # ------------------------------------------------------------------ UI
 
     def _build_ui(self):
@@ -232,6 +298,10 @@ class App:
         self.root.minsize(460, 480)
 
         self.pad = {"padx": 10, "pady": 5}
+
+        # --- Dark mode support ---
+        self.theme_var = tk.StringVar(value=self.cfg.get("theme", "light"))
+        self._apply_theme()
 
         # App icon + version label at top right
         try:
@@ -293,13 +363,34 @@ class App:
             value="api",
             command=self._on_pc_mode_changed,
         ).grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=3)
+
+        # API key entry (shown only in API mode)
+        self.pc_api_key_frame = ttk.Frame(self.pc_mode_frame)
+        self.pc_api_key_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 3))
+        self.pc_api_key_frame.columnconfigure(1, weight=1)
+        ttk.Label(self.pc_api_key_frame, text="API key:").grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.pc_api_key_var = tk.StringVar(value=self.cfg.get("price_check", {}).get("api_key", ""))
+        self.pc_api_key_entry = ttk.Entry(
+            self.pc_api_key_frame, textvariable=self.pc_api_key_var, width=40, show="*"
+        )
+        self.pc_api_key_entry.grid(row=0, column=1, sticky="ew", padx=(0, 6))
+        self.pc_api_show_var = tk.BooleanVar(value=False)
+        self.pc_api_show_cb = ttk.Checkbutton(
+            self.pc_api_key_frame,
+            text="Show",
+            variable=self.pc_api_show_var,
+            command=self._on_pc_api_show_toggle,
+        )
+        self.pc_api_show_cb.grid(row=0, column=2)
+        self.pc_api_key_frame.grid_remove()  # hidden until API mode selected
+
         ttk.Radiobutton(
             self.pc_mode_frame,
             text="Redirect to AI tool (open in browser)",
             variable=self.pc_mode_var,
             value="redirect",
             command=self._on_pc_mode_changed,
-        ).grid(row=1, column=0, columnspan=3, sticky="w", padx=6, pady=3)
+        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=6, pady=3)
 
         # AI tool selector (next to redirect option)
         self.pc_ai_tool_var = tk.StringVar()
@@ -316,7 +407,7 @@ class App:
                 break
         self.pc_ai_tool_var.set(stored_label)
         self.pc_ai_tool_label = ttk.Label(self.pc_mode_frame, text="AI tool:")
-        self.pc_ai_tool_label.grid(row=2, column=0, sticky="e", padx=6, pady=3)
+        self.pc_ai_tool_label.grid(row=3, column=0, sticky="e", padx=6, pady=3)
         self.pc_ai_tool_combo = ttk.Combobox(
             self.pc_mode_frame,
             textvariable=self.pc_ai_tool_var,
@@ -324,7 +415,7 @@ class App:
             width=18,
             state="readonly",
         )
-        self.pc_ai_tool_combo.grid(row=2, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        self.pc_ai_tool_combo.grid(row=3, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         self.pc_ai_tool_combo.bind(
             "<<ComboboxSelected>>", lambda e: self._on_pc_ai_tool_changed()
         )
@@ -342,7 +433,7 @@ class App:
             "New chat each time" if new_chat_each_time else "Continue same chat"
         )
         ttk.Label(self.pc_mode_frame, text="New chat behavior:").grid(
-            row=3, column=0, sticky="e", padx=6, pady=3
+            row=4, column=0, sticky="e", padx=6, pady=3
         )
         self.pc_new_chat_combo = ttk.Combobox(
             self.pc_mode_frame,
@@ -351,7 +442,7 @@ class App:
             width=18,
             state="readonly",
         )
-        self.pc_new_chat_combo.grid(row=3, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        self.pc_new_chat_combo.grid(row=4, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
 
         # Key bind display
         self.pc_keybind_var = tk.StringVar()
@@ -360,16 +451,16 @@ class App:
             textvariable=self.pc_keybind_var,
             foreground="#666",
         )
-        self.pc_keybind_label.grid(row=4, column=0, columnspan=3, sticky="w", padx=6, pady=3)
+        self.pc_keybind_label.grid(row=5, column=0, columnspan=3, sticky="w", padx=6, pady=3)
         self._refresh_pc_keybind_label()
 
-        # Clarification: API key is in Settings
+        # Instructions
         ttk.Label(
             self.pc_mode_frame,
-            text="API key is configured in Settings → API Key",
+            text="Hover an item in game and press F8 to price check.",
             foreground="#666",
             font=("Segoe UI", 8),
-        ).grid(row=5, column=0, columnspan=3, sticky="w", padx=6, pady=(0, 3))
+        ).grid(row=6, column=0, columnspan=3, sticky="w", padx=6, pady=(0, 3))
 
         # ---- Item variables ----
         var_frame = ttk.LabelFrame(pc_body, text="Item variables (filled into the AI prompt)")
@@ -685,36 +776,21 @@ class App:
         ttk.Button(opt, text="Apply", command=self.on_apply_options).pack(
             anchor="w", padx=6, pady=(0, 6))
 
-        # API Key (for Price Check API mode)
-        api_frame = ttk.LabelFrame(settings_tab, text="API Key (Price Check)")
-        api_frame.grid(row=2, column=0, sticky="ew", **self.pad)
-        api_frame.columnconfigure(0, weight=1)
-        self.pc_settings_api_key_var = tk.StringVar(
-            value=self.cfg.get("price_check", {}).get("api_key", "")
+        # Theme: light / dark
+        theme_frame = ttk.LabelFrame(settings_tab, text="Appearance")
+        theme_frame.grid(row=2, column=0, sticky="ew", **self.pad)
+        self.theme_combo_var = tk.StringVar(
+            value="Light" if self.theme_var.get() == "light" else "Dark"
         )
-        self.pc_settings_api_key_entry = ttk.Entry(
-            api_frame, textvariable=self.pc_settings_api_key_var, width=40, show="*"
-        )
-        self.pc_settings_api_key_entry.grid(row=0, column=0, sticky="ew", padx=6, pady=4)
-        self.pc_settings_api_show_var = tk.BooleanVar(value=False)
-        self.pc_settings_api_show_cb = ttk.Checkbutton(
-            api_frame,
-            text="Show key",
-            variable=self.pc_settings_api_show_var,
-            command=self._on_pc_settings_api_show_toggle,
-        )
-        self.pc_settings_api_show_cb.grid(row=0, column=1, padx=6, pady=4)
-        ttk.Button(
-            api_frame,
-            text="Save API Key",
-            command=self.on_save_pc_api_key,
-        ).grid(row=1, column=0, sticky="w", padx=6, pady=(0, 4))
-        ttk.Label(
-            api_frame,
-            text="Used only when Price Check mode is set to 'Use API key'.",
-            foreground="#666",
-            font=("Segoe UI", 8),
-        ).grid(row=1, column=1, sticky="w", padx=6, pady=(0, 4))
+        ttk.Label(theme_frame, text="Theme:").grid(row=0, column=0, sticky="w", padx=6, pady=3)
+        ttk.OptionMenu(
+            theme_frame,
+            self.theme_combo_var,
+            self.theme_combo_var.get(),
+            "Light",
+            "Dark",
+            command=self._on_theme_combo_changed,
+        ).grid(row=0, column=1, sticky="w", padx=6, pady=3)
 
         # Capture source: which window/screen the tool captures from
         src_frame = ttk.LabelFrame(settings_tab, text="Capture source")
@@ -1361,27 +1437,28 @@ class App:
         bind = self.cfg.get("hotkeys", {}).get("price_check_item", "f8")
         self.pc_keybind_var.set(f"Key bind: {bind.upper()}")
 
-    def _on_pc_settings_api_show_toggle(self):
-        """Toggle API key visibility in the Settings entry."""
-        show = self.pc_settings_api_show_var.get()
-        self.pc_settings_api_key_entry.configure(show="" if show else "*")
-
-    def on_save_pc_api_key(self):
-        """Save the API key from the Settings page into config."""
-        key = self.pc_settings_api_key_var.get().strip()
-        pc_cfg = self.cfg.setdefault("price_check", {})
-        pc_cfg["api_key"] = key
+    def _on_theme_combo_changed(self, selection):
+        """Handle theme dropdown change in Settings."""
+        new_theme = "dark" if selection == "Dark" else "light"
+        self.theme_var.set(new_theme)
+        self.cfg["theme"] = new_theme
         save_config(self.cfg)
-        self._set_status("API key saved.")
+        self._apply_theme()
 
     def _on_pc_mode_changed(self):
-        """Enable/disable the API key field based on the selected mode,
-        and show/hide the result area (API mode only)."""
+        """Show/hide API key field and result area based on selected mode."""
         is_api = self.pc_mode_var.get() == "api"
         if is_api:
+            self.pc_api_key_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 3))
             self.pc_result_frame.grid(row=3, column=0, sticky="ew", **self.pad)
         else:
+            self.pc_api_key_frame.grid_remove()
             self.pc_result_frame.grid_forget()
+
+    def _on_pc_api_show_toggle(self):
+        """Toggle API key visibility in the Price Check entry."""
+        show = self.pc_api_show_var.get()
+        self.pc_api_key_entry.configure(show="" if show else "*")
 
     def _on_pc_add_marketplace(self):
         """Add a user-typed marketplace to the listbox (max 5)."""
@@ -1502,7 +1579,7 @@ class App:
         pc_cfg["mode"] = self.pc_mode_var.get()
         ai_label = self.pc_ai_tool_var.get()
         pc_cfg["ai_tool"] = self._pc_ai_key_by_label.get(ai_label, "gemini")
-        pc_cfg["api_key"] = pc_cfg.get("api_key", "")  # API key lives in Settings
+        pc_cfg["api_key"] = self.pc_api_key_var.get().strip()
         pc_cfg["platform"] = "PC"  # always fixed to PC
         pc_cfg["ladder_status"] = self.pc_ladder_var.get()
         pc_cfg["hardcore_status"] = self.pc_hardcore_var.get()
