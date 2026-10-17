@@ -82,33 +82,65 @@ class RoundedButton(tk.Canvas):
         Font tuple (family, size, style).
     """
 
-    # Theme colors applied to all buttons that don't override them
-    theme_bg = None
-    theme_fg = None
-    theme_hover = None
-    theme_pressed = None
-    theme_disabled = None
-    theme_disabled_fg = None
+    # Theme colors — separate palettes for primary and secondary buttons
+    theme_primary_bg = None
+    theme_primary_fg = None
+    theme_primary_hover = None
+    theme_primary_pressed = None
+    theme_primary_disabled = None
+    theme_primary_disabled_fg = None
+    theme_secondary_bg = None
+    theme_secondary_fg = None
+    theme_secondary_hover = None
+    theme_secondary_pressed = None
+    theme_secondary_border = None
+    theme_secondary_disabled = None
+    theme_secondary_disabled_fg = None
+
+    # Default secondary button colors (when theme not yet applied)
+    secondary_bg_default = "#2a2e3d"
+    secondary_fg_default = "#ffffff"
+    secondary_disabled_default = "#3a3a42"
+    secondary_disabled_fg_default = "#8a8a9a"
 
     # Track all instances for theme updates
     _instances = set()
 
     @classmethod
-    def update_theme(cls, bg=None, fg=None, hover=None, pressed=None,
-                     disabled=None, disabled_fg=None):
+    def update_theme(cls, primary_bg=None, primary_fg=None, primary_hover=None,
+                     primary_pressed=None, primary_disabled=None,
+                     primary_disabled_fg=None,
+                     secondary_bg=None, secondary_fg=None,
+                     secondary_hover=None, secondary_pressed=None,
+                     secondary_border=None, secondary_disabled=None,
+                     secondary_disabled_fg=None):
         """Update theme colors for all RoundedButton instances."""
-        if bg is not None:
-            cls.theme_bg = bg
-        if fg is not None:
-            cls.theme_fg = fg
-        if hover is not None:
-            cls.theme_hover = hover
-        if pressed is not None:
-            cls.theme_pressed = pressed
-        if disabled is not None:
-            cls.theme_disabled = disabled
-        if disabled_fg is not None:
-            cls.theme_disabled_fg = disabled_fg
+        if primary_bg is not None:
+            cls.theme_primary_bg = primary_bg
+        if primary_fg is not None:
+            cls.theme_primary_fg = primary_fg
+        if primary_hover is not None:
+            cls.theme_primary_hover = primary_hover
+        if primary_pressed is not None:
+            cls.theme_primary_pressed = primary_pressed
+        if primary_disabled is not None:
+            cls.theme_primary_disabled = primary_disabled
+        if primary_disabled_fg is not None:
+            cls.theme_primary_disabled_fg = primary_disabled_fg
+        if secondary_bg is not None:
+            cls.theme_secondary_bg = secondary_bg
+        if secondary_fg is not None:
+            cls.theme_secondary_fg = secondary_fg
+        if secondary_hover is not None:
+            cls.theme_secondary_hover = secondary_hover
+        if secondary_pressed is not None:
+            cls.theme_secondary_pressed = secondary_pressed
+        if secondary_border is not None:
+            cls.theme_secondary_border = secondary_border
+        if secondary_disabled is not None:
+            cls.theme_secondary_disabled = secondary_disabled
+        if secondary_disabled_fg is not None:
+            cls.theme_secondary_disabled_fg = secondary_disabled_fg
         # Redraw all existing buttons
         for inst in list(cls._instances):
             try:
@@ -120,7 +152,8 @@ class RoundedButton(tk.Canvas):
                  corner_radius=16, bg_color=None, fg_color="#ffffff",
                  hover_color=None, pressed_color=None,
                  disabled_color="#5a5a5a", disabled_fg_color="#aaaaaa",
-                 font=("Segoe UI", 9, "normal"), state="normal"):
+                 font=("Segoe UI", 9, "normal"), state="normal",
+                 style="primary"):
         super().__init__(parent, highlightthickness=0, bd=0, cursor="hand2")
 
         self.command = command
@@ -130,6 +163,7 @@ class RoundedButton(tk.Canvas):
         self.enabled = True
         self.pressed = False
         self.hovered = False
+        self.style = style  # "primary" or "secondary"
 
         # Colors - instance overrides take priority, then theme, then defaults
         self.bg_color = bg_color
@@ -141,32 +175,6 @@ class RoundedButton(tk.Canvas):
 
         # Track this instance for theme updates
         RoundedButton._instances.add(self)
-
-        if state == "disabled":
-            self.enabled = False
-
-    def __init__(self, parent, text="", command=None, width=0, height=32,
-                 corner_radius=16, bg_color=None, fg_color="#ffffff",
-                 hover_color=None, pressed_color=None,
-                 disabled_color="#5a5a5a", disabled_fg_color="#aaaaaa",
-                 font=("Segoe UI", 9, "normal"), state="normal"):
-        super().__init__(parent, highlightthickness=0, bd=0, cursor="hand2")
-
-        self.command = command
-        self.text = text
-        self.font = font
-        self.corner_radius = corner_radius
-        self.enabled = True
-        self.pressed = False
-        self.hovered = False
-
-        # Colors - instance overrides take priority, then theme, then defaults
-        self.bg_color = bg_color
-        self.fg_color = fg_color
-        self.hover_color = hover_color
-        self.pressed_color = pressed_color
-        self.disabled_color = disabled_color
-        self.disabled_fg_color = disabled_fg_color
 
         if state == "disabled":
             self.enabled = False
@@ -206,22 +214,56 @@ class RoundedButton(tk.Canvas):
         return default_val
 
     def _current_bg(self):
-        if not self.enabled:
-            return self._resolve(self.disabled_color,
-                                 self.theme_disabled, "#5a5a5a")
-        if self.pressed:
-            return self._resolve(self.pressed_color,
-                                 self.theme_pressed, self.bg_color)
-        if self.hovered:
-            return self._resolve(self.hover_color,
-                                 self.theme_hover, self.bg_color)
-        return self._resolve(self.bg_color, self.theme_bg, "#4f46e5")
+        if self.style == "secondary":
+            if not self.enabled:
+                return self._resolve(self.disabled_color,
+                                     self.theme_secondary_disabled,
+                                     secondary_disabled_default)
+            if self.pressed:
+                return self._resolve(self.pressed_color,
+                                     self.theme_secondary_pressed,
+                                     self.bg_color)
+            if self.hovered:
+                return self._resolve(self.hover_color,
+                                     self.theme_secondary_hover,
+                                     self.bg_color)
+            return self._resolve(self.bg_color,
+                                 self.theme_secondary_bg,
+                                 secondary_bg_default)
+        else:
+            if not self.enabled:
+                return self._resolve(self.disabled_color,
+                                     self.theme_primary_disabled,
+                                     "#5a5a5a")
+            if self.pressed:
+                return self._resolve(self.pressed_color,
+                                     self.theme_primary_pressed,
+                                     self.bg_color)
+            if self.hovered:
+                return self._resolve(self.hover_color,
+                                     self.theme_primary_hover,
+                                     self.bg_color)
+            return self._resolve(self.bg_color,
+                                 self.theme_primary_bg,
+                                 "#4f46e5")
 
     def _current_fg(self):
-        if not self.enabled:
-            return self._resolve(self.disabled_fg_color,
-                                 self.theme_disabled_fg, "#aaaaaa")
-        return self._resolve(self.fg_color, self.theme_fg, "#ffffff")
+        if self.style == "secondary":
+            if not self.enabled:
+                return self._resolve(self.disabled_fg_color,
+                                     self.theme_secondary_disabled_fg,
+                                     secondary_disabled_fg_default)
+            return self._resolve(self.fg_color,
+                                 self.theme_secondary_fg,
+                                 secondary_fg_default)
+        else:
+            if not self.enabled:
+                return self._resolve(self.disabled_fg_color,
+                                     self.theme_primary_disabled_fg,
+                                     "#aaaaaa")
+            return self._resolve(self.fg_color,
+                                 self.theme_primary_fg,
+                                 "#ffffff")
 
     def _draw(self):
         self.delete("all")
@@ -734,12 +776,19 @@ class App:
 
         # Update all RoundedButton instances with theme colors
         RoundedButton.update_theme(
-            bg=accent,
-            fg="#ffffff",
-            hover=accent_hover,
-            pressed=accent_pressed,
-            disabled=primary_disabled_bg,
-            disabled_fg=primary_disabled_fg,
+            primary_bg=accent,
+            primary_fg="#ffffff",
+            primary_hover=accent_hover,
+            primary_pressed=accent_pressed,
+            primary_disabled=primary_disabled_bg,
+            primary_disabled_fg=primary_disabled_fg,
+            secondary_bg=secondary_bg,
+            secondary_fg=secondary_text,
+            secondary_hover=secondary_hover,
+            secondary_pressed=secondary_pressed,
+            secondary_border=secondary_border,
+            secondary_disabled=secondary_disabled_bg,
+            secondary_disabled_fg=secondary_disabled_fg,
         )
 
     def _toggle_theme(self):
