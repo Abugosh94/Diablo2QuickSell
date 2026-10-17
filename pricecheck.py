@@ -438,15 +438,19 @@ class PriceChecker:
             ]
         }
         url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            "gemini-pro:generateContent?key=" + api_key
+            "https://generativelanguage.googleapis.com/v1/models/"
+            "gemini-1.5-flash:generateContent?key=" + api_key
         )
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             url, data=data, headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            body = resp.read().decode("utf-8")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                body = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8")
+            return False, f"Gemini API error ({e.code}): {body}"
         result = json.loads(body)
         try:
             text = result["candidates"][0]["content"]["parts"][0]["text"]
@@ -485,8 +489,12 @@ class PriceChecker:
                 "Authorization": "Bearer " + api_key,
             },
         )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            body = resp.read().decode("utf-8")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                body = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8")
+            return False, f"OpenAI API error ({e.code}): {body}"
         result = json.loads(body)
         try:
             text = result["choices"][0]["message"]["content"]
