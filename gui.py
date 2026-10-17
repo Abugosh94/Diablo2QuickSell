@@ -230,44 +230,65 @@ class App:
         if effective_theme == "system":
             effective_theme = self._detect_system_theme()
 
+        # ------------------------------------------------------------------ Palette
         if effective_theme == "dark":
-            bg = "#252526"
-            fg = "#cccccc"
-            panel_bg = "#2d2d2d"
-            select_bg = "#3e3e42"
+            bg = "#1e1e26"           # Deep charcoal for main bg
+            fg = "#e0e0e0"           # Light gray text
+            panel_bg = "#252526"     # Slightly lighter panels
+            select_bg = "#3c3c45"    # Selection background
             select_fg = "#ffffff"
-            accent = "#007acc"
-            accent_hover = "#118acf"
-            accent_pressed = "#0c5ea4"
-            entry_bg = "#3c3c3c"
-            entry_fg = "#cccccc"
-            disabled_fg = "#858585"
-            border = "#454545"
-            hover_bg = "#37373d"
+            accent = "#0d6efd"       # Modern blue accent
+            accent_hover = "#1d8cff"
+            accent_pressed = "#0a5bc4"
+            entry_bg = "#333333"
+            entry_fg = "#e0e0e0"
+            disabled_fg = "#757575"
+            border = "#4a4a4a"
+            hover_bg = "#333333"
+            secondary_bg = "#2d2d26"
             self.root.configure(bg=bg)
         else:
-            bg = "#ffffff"
-            fg = "#333333"
-            panel_bg = "#f5f5f5"
+            bg = "#fafafa"           # Very light gray instead of pure white
+            fg = "#202020"           # Near-black text
+            panel_bg = "#f0f0f0"     # Light panel background
             select_bg = "#e8f1fe"
             select_fg = "#000000"
-            accent = "#007acc"
-            accent_hover = "#0b6dc4"
-            accent_pressed = "#095ea3"
+            accent = "#0d6efd"
+            accent_hover = "#1d8cff"
+            accent_pressed = "#0a5bc4"
             entry_bg = "#ffffff"
-            entry_fg = "#333333"
-            disabled_fg = "#aaaaaa"
-            border = "#d4d4d4"
+            entry_fg = "#202020"
+            disabled_fg = "#999999"
+            border = "#cccccc"
             hover_bg = "#f0f0f0"
+            secondary_bg = "#f0f0f0"
             self.root.configure(bg=bg)
 
-        # Common widget styles
+        # ------------------------------------------------------------------ Common widget styles
         style.configure("TFrame", background=bg)
         style.configure("TLabel", background=bg, foreground=fg)
         style.configure("TLabelframe", background=panel_bg, foreground=fg, bordercolor=border, borderwidth=1)
-        style.configure("TLabelframe.Label", background=panel_bg, foreground=fg)
-        style.configure("TEntry", fieldbackground=entry_bg, foreground=entry_fg, bordercolor=border, insertcolor=fg, borderwidth=1, relief="flat")
-        style.configure("TCombobox", fieldbackground=entry_bg, foreground=entry_fg, bordercolor=border, insertcolor=fg, borderwidth=1, relief="flat")
+        style.configure("TLabelframe.Label", background=panel_bg, foreground=fg, font=("Segoe UI", 9, "bold"))
+        style.configure(
+            "TEntry",
+            fieldbackground=entry_bg,
+            foreground=entry_fg,
+            bordercolor=border,
+            insertcolor=fg,
+            borderwidth=1,
+            relief="flat",
+        )
+        style.configure(
+            "TCombobox",
+            fieldbackground=entry_bg,
+            foreground=entry_fg,
+            bordercolor=border,
+            insertcolor=fg,
+            borderwidth=1,
+            relief="flat",
+        )
+
+        # Primary button - solid accent color with rounded look via padding
         style.configure(
             "TButton",
             background=accent,
@@ -276,15 +297,16 @@ class App:
             focuscolor=accent,
             borderwidth=0,
             relief="flat",
-            padding=(14, 7),
-            font=("Segoe UI", 9, "normal"),
+            padding=(16, 8),
+            font=("Segoe UI", 9, "bold"),
         )
         style.map(
             "TButton",
-            background=[("active", accent_hover), ("pressed", accent_pressed), ("disabled", "#666666")],
-            foreground=[("disabled", "#999999")],
+            background=[("active", accent_hover), ("pressed", accent_pressed), ("disabled", "#888888")],
+            foreground=[("disabled", "#cccccc")],
         )
-        # Secondary button style for secondary actions
+
+        # Secondary button - subtle outline style
         style.configure(
             "Secondary.TButton",
             background=panel_bg,
@@ -292,15 +314,16 @@ class App:
             bordercolor=border,
             focuscolor=border,
             borderwidth=1,
-            relief="solid",
-            padding=(12, 6),
+            relief="flat",
+            padding=(14, 6),
             font=("Segoe UI", 9, "normal"),
         )
         style.map(
             "Secondary.TButton",
             background=[("active", hover_bg), ("pressed", select_bg)],
-            foreground=[("disabled", "#999999")],
+            foreground=[("disabled", disabled_fg)],
         )
+
         style.configure(
             "TRadiobutton",
             background=bg,
@@ -309,6 +332,7 @@ class App:
             borderwidth=0,
         )
         style.map("TRadiobutton", background=[("active", bg), ("selected", bg)])
+
         style.configure(
             "TCheckbutton",
             background=bg,
@@ -317,8 +341,17 @@ class App:
             borderwidth=0,
         )
         style.map("TCheckbutton", background=[("active", bg)])
+
         style.configure("TNotebook", background=bg, bordercolor=border)
-        style.configure("TNotebook.Tab", background=panel_bg, foreground=fg, bordercolor=border, borderwidth=1, padding=(12, 4))
+        style.configure(
+            "TNotebook.Tab",
+            background=panel_bg,
+            foreground=fg,
+            bordercolor=border,
+            borderwidth=1,
+            padding=(14, 8),
+            font=("Segoe UI", 9, "normal"),
+        )
         style.map(
             "TNotebook.Tab",
             background=[("selected", bg), ("active", hover_bg)],
