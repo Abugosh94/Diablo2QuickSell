@@ -349,8 +349,7 @@ class App:
             foreground=fg,
             bordercolor=border,
             borderwidth=1,
-            padding=(14, 8),
-            font=("Segoe UI", 9, "normal"),
+            padding=(10, 5),
         )
         style.map(
             "TNotebook.Tab",
