@@ -45,6 +45,176 @@ from pricecheck import (
     DEFAULT_MARKETPLACES,
 )
 
+# ------------------------------------------------------------------ RoundedButton
+# tkinter.ttk buttons use native OS drawing and CANNOT render rounded corners.
+# This custom canvas-based button provides true rounded/pill-shaped buttons
+# with hover and pressed feedback, working in both light and dark themes.
+class RoundedButton(tk.Canvas):
+    """A round-cornered button drawn on a Canvas.
+    
+    Parameters
+    ----------
+    parent : tk.Widget
+        Parent widget.
+    text : str
+        Button label text.
+    command : callable, optional
+        Function to call on click.
+    width : int, optional
+        Fixed width in pixels (auto-sized if 0).
+    height : int, optional
+        Fixed height in pixels (auto-sized if 0).
+    corner_radius : int, optional
+        Corner radius in pixels. Use a large value for pill shape.
+    bg_color : str, optional
+        Background color (default: accent color).
+    fg_color : str, optional
+        Text color (default: white).
+    hover_color : str, optional
+        Hover background color.
+    pressed_color : str, optional
+        Pressed background color.
+    disabled_color : str, optional
+        Disabled background color.
+    disabled_fg_color : str, optional
+        Disabled text color.
+    font : tuple, optional
+        Font tuple (family, size, style).
+    """
+
+    def __init__(self, parent, text="", command=None, width=0, height=32,
+                 corner_radius=16, bg_color=None, fg_color="#ffffff",
+                 hover_color=None, pressed_color=None,
+                 disabled_color="#5a5a5a", disabled_fg_color="#aaaaaa",
+                 font=("Segoe UI", 9, "normal"), state="normal"):
+        super().__init__(parent, highlightthickness=0, bd=0, cursor="hand2")
+
+        self.command = command
+        self.text = text
+        self.font = font
+        self.corner_radius = corner_radius
+        self.enabled = True
+        self.pressed = False
+        self.hovered = False
+
+        # Colors
+        self.bg_color = bg_color
+        self.fg_color = fg_color
+        self.hover_color = hover_color or bg_color
+        self.pressed_color = pressed_color or bg_color
+        self.disabled_color = disabled_color
+        self.disabled_fg_color = disabled_fg_color
+
+        if state == "disabled":
+            self.enabled = False
+
+        # Bind events
+        self.bind("<Enter>", self._on_enter)
+        self.bind("<Leave>", self._on_leave)
+        self.bind("<ButtonPress-1>", self._on_press)
+        self.bind("<ButtonRelease-1>", self._on_release)
+        self.bind("<Configure>", self._on_resize)
+
+        self._draw()
+
+    def _current_bg(self):
+        if not self.enabled:
+            return self.disabled_color
+        if self.pressed:
+            return self.pressed_color
+        if self.hovered:
+            return self.hover_color
+        return self.bg_color
+
+    def _current_fg(self):
+        if not self.enabled:
+            return self.disabled_fg_color
+        return self.fg_color
+
+    def _draw(self):
+        self.delete("all")
+        w = self.winfo_width()
+        h = self.winfo_height()
+        if w < 1 or h < 1:
+            return
+
+        r = min(self.corner_radius, h // 2)
+        bg = self._current_bg()
+        fg = self._current_fg()
+
+        # Draw rounded rectangle
+        self.create_rounded_rect(0, 0, w, h, r, fill=bg, outline="")
+
+        # Draw text centered
+        if self.text:
+            self.create_text(w // 2, h // 2, text=self.text,
+                             fill=fg, font=self.font, justify="center")
+
+    def create_rounded_rect(self, x1, y1, x2, y2, r, **kwargs):
+        """Draw a rounded rectangle."""
+        points = [
+            x1 + r, y1,
+            x2 - r, y1,
+            x2, y1,
+            x2, y1 + r,
+            x2, y2 - r,
+            x2, y2,
+            x2 - r, y2,
+            x1 + r, y2,
+            x1, y2,
+            x1, y2 - r,
+            x1, y1 + r,
+            x1, y1,
+        ]
+        return self.create_polygon(points, smooth=True, **kwargs)
+
+    def _on_enter(self, event):
+        if self.enabled:
+            self.hovered = True
+            self._draw()
+
+    def _on_leave(self, event):
+        self.hovered = False
+        self.pressed = False
+        self._draw()
+
+    def _on_press(self, event):
+        if self.enabled:
+            self.pressed = True
+            self._draw()
+
+    def _on_release(self, event):
+        if self.enabled and self.pressed:
+            self.pressed = False
+            self._draw()
+            if self.command:
+                self.command()
+        self.pressed = False
+
+    def _on_resize(self, event):
+        self._draw()
+
+    def configure(self, **kwargs):
+        if "text" in kwargs:
+            self.text = kwargs.pop("text")
+        if "command" in kwargs:
+            self.command = kwargs.pop("command")
+        if "state" in kwargs:
+            state = kwargs.pop("state")
+            if state == "disabled":
+                self.enabled = False
+            elif state == "normal":
+                self.enabled = True
+        if "fg_color" in kwargs:
+            self.fg_color = kwargs.pop("fg_color")
+        if "bg_color" in kwargs:
+            self.bg_color = kwargs.pop("bg_color")
+        super().configure(**kwargs)
+        self._draw()
+
+    def configure_command(self, command):
+        self.command = command
+
 # Keep a reference to the single-instance mutex so it isn't garbage-collected
 # and released while the app is running.
 if getattr(sys, "frozen", False):
@@ -114,10 +284,10 @@ class CropDialog(tk.Toplevel):
         self.info = ttk.Label(bar, text="Drag a rectangle around the tooltip. "
                                      "Enter = use, Esc = cancel")
         self.info.pack(side="left", padx=6, pady=4)
-        ttk.Button(bar, text="Cancel", command=self._cancel).pack(
+        RoundedButton(bar, text="Cancel", command=self._cancel).pack(
             side="right", padx=6, pady=4)
-        self.use_btn = ttk.Button(bar, text="Use selection", command=self._ok,
-                                  state="disabled")
+        self.use_btn = RoundedButton(bar, text="Use selection", command=self._ok,
+                                   state="disabled")
         self.use_btn.pack(side="right", padx=6, pady=4)
 
         self.canvas.bind("<ButtonPress-1>", self._press)
@@ -686,12 +856,12 @@ class App:
         ttk.Entry(
             mp_btn_frame, textvariable=self.pc_custom_marketplace_var, width=24
         ).pack(side="left", padx=(0, 4))
-        ttk.Button(
+        RoundedButton(
             mp_btn_frame,
             text="Add",
             command=self._on_pc_add_marketplace,
         ).pack(side="left", padx=(0, 4))
-        ttk.Button(
+        RoundedButton(
             mp_btn_frame,
             text="Remove",
             command=self._on_pc_remove_marketplace,
@@ -817,19 +987,19 @@ class App:
         ttk.Entry(self.custom_row, textvariable=self.custom_name_var, width=20).pack(side="left", padx=6)
         ttk.Label(self.custom_row, text="URL:").pack(side="left", padx=(8, 0))
         ttk.Entry(self.custom_row, textvariable=self.custom_url_var, width=30).pack(side="left", padx=6)
-        ttk.Button(self.custom_row, text="Save site", command=self.on_save_custom_site).pack(side="left", padx=6)
+        RoundedButton(self.custom_row, text="Save site", command=self.on_save_custom_site).pack(side="left", padx=6)
 
         self._refresh_site_combo()
         self.site_combo.bind("<<ComboboxSelected>>", self.on_site_selected)
-        self.open_site_btn = ttk.Button(row1, text="Open site", command=self.on_open_site)
+        self.open_site_btn = RoundedButton(row1, text="Open site", command=self.on_open_site)
         self.open_site_btn.pack(side="left", padx=6)
 
         # Main action buttons
         btn_frame = ttk.Frame(body)
         btn_frame.pack(pady=14)
-        ttk.Button(btn_frame, text="Quick List Hovered Item (F9)",
+        RoundedButton(btn_frame, text="Quick List Hovered Item (F9)",
                    command=self.on_quick_list).pack(pady=4)
-        ttk.Button(btn_frame, text="Manual Crop + Post (F10)",
+        RoundedButton(btn_frame, text="Manual Crop + Post (F10)",
                    command=self.on_manual_crop_item).pack(pady=4)
 
         # Instructions
@@ -903,7 +1073,7 @@ class App:
             self.bind_entries[name] = entry
             entry.bind("<Button-1>", lambda e, n=name: self._start_bind_capture(n))
             row += 1
-        ttk.Button(kb, text="Apply Keybinds", command=self.on_apply_binds).grid(
+        RoundedButton(kb, text="Apply Keybinds", command=self.on_apply_binds).grid(
             row=row, column=0, columnspan=2, pady=6, sticky="w", padx=6)
 
         # Options: close behavior + start with windows
@@ -925,7 +1095,7 @@ class App:
                         variable=self.manual_override_var,
                         command=self._on_toggle_manual_override
                         ).pack(anchor="w", padx=6, pady=(2, 6))
-        ttk.Button(opt, text="Apply", command=self.on_apply_options).pack(
+        RoundedButton(opt, text="Apply", command=self.on_apply_options).pack(
             anchor="w", padx=6, pady=(0, 6))
 
         # Theme: light / dark / system default
@@ -960,9 +1130,9 @@ class App:
         self.source_combo.set(self.cfg.get("capture_window_title") or "diablo")
         btn_row = ttk.Frame(src_frame)
         btn_row.pack(anchor="w", padx=6, pady=(0, 6))
-        ttk.Button(btn_row, text="Refresh list",
+        RoundedButton(btn_row, text="Refresh list",
                    command=self.on_refresh_windows).pack(side="left")
-        ttk.Button(btn_row, text="Apply Capture Source", command=self.on_apply_capture_source).pack(side="left", padx=6)
+        RoundedButton(btn_row, text="Apply Capture Source", command=self.on_apply_capture_source).pack(side="left", padx=6)
 
     def on_refresh_windows(self):
         from capture import list_windows
@@ -1123,12 +1293,12 @@ class App:
         btn_frame = ttk.Frame(main_frame)
         btn_frame.pack(fill="x", pady=(0, 10))
         
-        ttk.Button(btn_frame, text="Add", command=lambda: self._edit_custom_site(dialog, None)).pack(side="left", padx=(0, 5))
-        ttk.Button(btn_frame, text="Edit", command=lambda: self._edit_custom_site(dialog, "edit")).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="Delete", command=self._delete_custom_site).pack(side="left", padx=5)
+        RoundedButton(btn_frame, text="Add", command=lambda: self._edit_custom_site(dialog, None)).pack(side="left", padx=(0, 5))
+        RoundedButton(btn_frame, text="Edit", command=lambda: self._edit_custom_site(dialog, "edit")).pack(side="left", padx=5)
+        RoundedButton(btn_frame, text="Delete", command=self._delete_custom_site).pack(side="left", padx=5)
         
         # Close button
-        ttk.Button(main_frame, text="Close", command=dialog.destroy).pack(pady=10)
+        RoundedButton(main_frame, text="Close", command=dialog.destroy).pack(pady=10)
         
         # Load initial data
         self._refresh_custom_sites_list()
@@ -1208,8 +1378,8 @@ class App:
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save site: {e}", parent=edit_dialog)
         
-        ttk.Button(btn_frame, text="Save", command=save_site).pack(side="left", padx=(0, 10))
-        ttk.Button(btn_frame, text="Cancel", command=edit_dialog.destroy).pack(side="left")
+        RoundedButton(btn_frame, text="Save", command=save_site).pack(side="left", padx=(0, 10))
+        RoundedButton(btn_frame, text="Cancel", command=edit_dialog.destroy).pack(side="left")
         
         # Configure grid weights
         form_frame.columnconfigure(1, weight=1)
@@ -1367,7 +1537,7 @@ class App:
                 on_ok(new_name, class_var.get().strip() or None)
             dlg.destroy()
 
-        ttk.Button(frm, text="OK", command=_ok).grid(row=3, column=0,
+        RoundedButton(frm, text="OK", command=_ok).grid(row=3, column=0,
                                                       columnspan=2, pady=8)
 
     def on_new_character(self):
@@ -1742,8 +1912,8 @@ class App:
             except ValueError as e:
                 self._set_status(str(e))
 
-        ttk.Button(btn_frame, text="Save", command=_save).pack(side="left", padx=(0, 10))
-        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side="left")
+        RoundedButton(btn_frame, text="Save", command=_save).pack(side="left", padx=(0, 10))
+        RoundedButton(btn_frame, text="Cancel", command=dialog.destroy).pack(side="left")
 
         dialog.wait_window(dialog)
 
