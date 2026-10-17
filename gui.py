@@ -302,7 +302,8 @@ class App:
         )
 
         # ------------------------------------------------------------------ Buttons
-        # Primary action button - solid accent with hover/pressed states
+        # Primary action button - solid accent color, pill-shaped via generous
+        # padding, hover/pressed states, bold text
         style.configure(
             "TButton",
             background=accent,
@@ -311,8 +312,8 @@ class App:
             focuscolor=accent,
             borderwidth=0,
             relief="flat",
-            padding=(18, 9),
-            font=("Segoe UI", 9, "bold"),
+            padding=(22, 11),
+            font=("Segoe UI", 10, "bold"),
         )
         style.map(
             "TButton",
@@ -333,8 +334,8 @@ class App:
             focuscolor=border,
             borderwidth=1,
             relief="flat",
-            padding=(16, 7),
-            font=("Segoe UI", 9, "normal"),
+            padding=(20, 8),
+            font=("Segoe UI", 9, "bold"),
         )
         style.map(
             "Secondary.TButton",
