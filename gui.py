@@ -237,9 +237,9 @@ class App:
             panel_bg = "#252526"     # Slightly lighter panels
             select_bg = "#3c3c45"    # Selection background
             select_fg = "#ffffff"
-            accent = "#0d6efd"       # Modern blue accent
-            accent_hover = "#1d8cff"
-            accent_pressed = "#0a5bc4"
+            accent = "#6366f1"       # Modern indigo accent
+            accent_hover = "#818cf8"
+            accent_pressed = "#4f46e5"
             entry_bg = "#333333"
             entry_fg = "#e0e0e0"
             disabled_fg = "#9aa0a6"   # Better contrast disabled text
@@ -253,9 +253,9 @@ class App:
             panel_bg = "#f0f0f0"     # Light panel background
             select_bg = "#e8f1fe"
             select_fg = "#000000"
-            accent = "#0d6efd"
-            accent_hover = "#1d8cff"
-            accent_pressed = "#0a5bc4"
+            accent = "#6366f1"
+            accent_hover = "#818cf8"
+            accent_pressed = "#4f46e5"
             entry_bg = "#ffffff"
             entry_fg = "#202020"
             disabled_fg = "#999999"
@@ -301,7 +301,8 @@ class App:
             selectforeground=[("readonly", entry_fg)],
         )
 
-        # Primary button - solid accent color with rounded look via padding
+        # ------------------------------------------------------------------ Buttons
+        # Primary action button - solid accent with hover/pressed states
         style.configure(
             "TButton",
             background=accent,
@@ -310,31 +311,36 @@ class App:
             focuscolor=accent,
             borderwidth=0,
             relief="flat",
-            padding=(16, 8),
+            padding=(18, 9),
             font=("Segoe UI", 9, "bold"),
         )
         style.map(
             "TButton",
-            background=[("active", accent_hover), ("pressed", accent_pressed), ("disabled", "#888888")],
-            foreground=[("disabled", "#cccccc")],
+            background=[
+                ("active", accent_hover),
+                ("pressed", accent_pressed),
+                ("disabled", "#5a5a5a"),
+            ],
+            foreground=[("disabled", "#aaaaaa")],
         )
 
-        # Secondary button - subtle outline style
+        # Secondary button - subtle outline style for secondary actions
         style.configure(
             "Secondary.TButton",
-            background=panel_bg,
+            background=secondary_bg,
             foreground=fg,
             bordercolor=border,
             focuscolor=border,
             borderwidth=1,
             relief="flat",
-            padding=(14, 6),
+            padding=(16, 7),
             font=("Segoe UI", 9, "normal"),
         )
         style.map(
             "Secondary.TButton",
             background=[("active", hover_bg), ("pressed", select_bg)],
             foreground=[("disabled", disabled_fg)],
+            bordercolor=[("active", accent), ("pressed", accent)],
         )
 
         style.configure(
