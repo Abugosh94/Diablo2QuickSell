@@ -231,48 +231,105 @@ class App:
             effective_theme = self._detect_system_theme()
 
         if effective_theme == "dark":
-            bg = "#2d2d2d"
-            fg = "#e0e0e0"
-            select_bg = "#3d3d3d"
+            bg = "#252526"
+            fg = "#cccccc"
+            panel_bg = "#2d2d2d"
+            select_bg = "#3e3e42"
             select_fg = "#ffffff"
             accent = "#007acc"
-            entry_bg = "#3a3a3a"
-            entry_fg = "#ffffff"
-            disabled_fg = "#888888"
-            border = "#555555"
+            accent_hover = "#118acf"
+            accent_pressed = "#0c5ea4"
+            entry_bg = "#3c3c3c"
+            entry_fg = "#cccccc"
+            disabled_fg = "#858585"
+            border = "#454545"
+            hover_bg = "#37373d"
             self.root.configure(bg=bg)
         else:
             bg = "#ffffff"
-            fg = "#000000"
+            fg = "#333333"
+            panel_bg = "#f5f5f5"
             select_bg = "#e8f1fe"
             select_fg = "#000000"
             accent = "#007acc"
+            accent_hover = "#0b6dc4"
+            accent_pressed = "#095ea3"
             entry_bg = "#ffffff"
-            entry_fg = "#000000"
+            entry_fg = "#333333"
             disabled_fg = "#aaaaaa"
-            border = "#cccccc"
+            border = "#d4d4d4"
+            hover_bg = "#f0f0f0"
             self.root.configure(bg=bg)
 
         # Common widget styles
         style.configure("TFrame", background=bg)
         style.configure("TLabel", background=bg, foreground=fg)
-        style.configure("TLabelframe", background=bg, foreground=fg, bordercolor=border)
-        style.configure("TLabelframe.Label", background=bg, foreground=fg)
-        style.configure("TEntry", fieldbackground=entry_bg, foreground=entry_fg, bordercolor=border, insertcolor=fg)
-        style.configure("TCombobox", fieldbackground=entry_bg, foreground=entry_fg, bordercolor=border, insertcolor=fg)
-        style.configure("TButton", background=accent, foreground="#ffffff", bordercolor=accent)
-        style.map("TButton", background=[("active", "#005a9e"), ("pressed", "#004a80")])
-        style.configure("TRadiobutton", background=bg, foreground=fg)
+        style.configure("TLabelframe", background=panel_bg, foreground=fg, bordercolor=border, borderwidth=1)
+        style.configure("TLabelframe.Label", background=panel_bg, foreground=fg)
+        style.configure("TEntry", fieldbackground=entry_bg, foreground=entry_fg, bordercolor=border, insertcolor=fg, borderwidth=1, relief="flat")
+        style.configure("TCombobox", fieldbackground=entry_bg, foreground=entry_fg, bordercolor=border, insertcolor=fg, borderwidth=1, relief="flat")
+        style.configure(
+            "TButton",
+            background=accent,
+            foreground="#ffffff",
+            bordercolor=accent,
+            focuscolor=accent,
+            borderwidth=0,
+            relief="flat",
+            padding=(14, 7),
+            font=("Segoe UI", 9, "normal"),
+        )
+        style.map(
+            "TButton",
+            background=[("active", accent_hover), ("pressed", accent_pressed), ("disabled", "#666666")],
+            foreground=[("disabled", "#999999")],
+        )
+        # Secondary button style for secondary actions
+        style.configure(
+            "Secondary.TButton",
+            background=panel_bg,
+            foreground=fg,
+            bordercolor=border,
+            focuscolor=border,
+            borderwidth=1,
+            relief="solid",
+            padding=(12, 6),
+            font=("Segoe UI", 9, "normal"),
+        )
+        style.map(
+            "Secondary.TButton",
+            background=[("active", hover_bg), ("pressed", select_bg)],
+            foreground=[("disabled", "#999999")],
+        )
+        style.configure(
+            "TRadiobutton",
+            background=bg,
+            foreground=fg,
+            focuscolor=bg,
+            borderwidth=0,
+        )
         style.map("TRadiobutton", background=[("active", bg), ("selected", bg)])
-        style.configure("TCheckbutton", background=bg, foreground=fg)
+        style.configure(
+            "TCheckbutton",
+            background=bg,
+            foreground=fg,
+            focuscolor=bg,
+            borderwidth=0,
+        )
         style.map("TCheckbutton", background=[("active", bg)])
         style.configure("TNotebook", background=bg, bordercolor=border)
-        style.configure("TNotebook.Tab", background=bg, foreground=fg, bordercolor=border)
+        style.configure("TNotebook.Tab", background=panel_bg, foreground=fg, bordercolor=border, borderwidth=1, padding=(12, 4))
         style.map(
             "TNotebook.Tab",
-            background=[("selected", accent), ("active", select_bg)],
-            foreground=[("selected", "#ffffff"), ("active", fg)],
+            background=[("selected", bg), ("active", hover_bg)],
+            foreground=[("selected", accent), ("active", fg)],
         )
+
+        # Remove dotted focus rings from all widgets
+        style.configure("TEntry", focuscolor=entry_bg, borderwidth=1, relief="flat")
+        style.configure("TCombobox", focuscolor=entry_bg, borderwidth=1, relief="flat")
+        style.configure("TCheckbutton", focuscolor=bg)
+        style.configure("TRadiobutton", focuscolor=bg)
 
         # Text widget (result area) - configure manually since ttk doesn't cover it
         self.root.option_add("*Text.background", entry_bg)
@@ -299,8 +356,8 @@ class App:
         except Exception:
             pass
         self.root.title(f"{APP_TITLE} v{APP_VERSION}")
-        self.root.geometry("520x560")
-        self.root.minsize(460, 480)
+        self.root.geometry("780x840")
+        self.root.minsize(690, 720)
 
         self.pad = {"padx": 10, "pady": 5}
 
@@ -320,9 +377,9 @@ class App:
         version_label = ttk.Label(self.root, text=f"v{APP_VERSION}", font=("Segoe UI", 8))
         version_label.place(relx=1.0, x=-10, y=5, anchor="ne")
 
-        # Top-level tab bar: Scanner | Settings
+        # Top-level tab bar: Price Check | Quick List | Settings
         notebook = ttk.Notebook(self.root)
-        notebook.pack(fill="both", expand=True, padx=6, pady=6)
+        notebook.pack(fill="both", expand=True, padx=0, pady=0)
 
         # ---- Tab 1: Price Check (scrollable) ----
         pc_tab = ttk.Frame(notebook)
@@ -719,6 +776,8 @@ class App:
         # ---- Tab 3: Settings (scrollable) ----
         settings_outer = ttk.Frame(notebook)
         notebook.add(settings_outer, text="Settings")
+        settings_outer.columnconfigure(0, weight=1)
+        settings_outer.rowconfigure(0, weight=1)
         s_canvas = tk.Canvas(settings_outer, highlightthickness=0)
         s_vbar = ttk.Scrollbar(settings_outer, orient="vertical", command=s_canvas.yview)
         s_canvas.configure(yscrollcommand=s_vbar.set)
@@ -736,6 +795,11 @@ class App:
                 s_canvas.yview_scroll(-1 * (e.delta // 120), "units")
         s_canvas.bind("<MouseWheel>", _s_wheel)
         settings_tab.columnconfigure(0, weight=1)
+        settings_tab.rowconfigure(0, weight=0)
+        settings_tab.rowconfigure(1, weight=0)
+        settings_tab.rowconfigure(2, weight=0)
+        settings_tab.rowconfigure(3, weight=0)
+        settings_tab.rowconfigure(4, weight=1)
 
         # Keybinds: click a field, then press the desired key combo
         kb = ttk.LabelFrame(settings_tab, text="Keybinds (click a field, then press a key)")
@@ -783,7 +847,8 @@ class App:
 
         # Theme: light / dark / system default
         theme_frame = ttk.LabelFrame(settings_tab, text="Appearance")
-        theme_frame.grid(row=2, column=0, sticky="ew", **self.pad)
+        theme_frame.grid(row=3, column=0, sticky="ew", **self.pad)
+        self.theme_combo_var = tk.StringVar()
         saved_theme = self.cfg.get("theme", "system")
         if saved_theme == "system":
             self.theme_combo_var.set("System Default (Auto)")
