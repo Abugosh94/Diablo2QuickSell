@@ -221,7 +221,7 @@ class App:
     # ------------------------------------------------------------------ Theme
 
     def _apply_theme(self):
-        """Apply light/dark theme colors to all ttk widgets."""
+        """Apply light/dark theme colors to all ttk and tk widgets."""
         style = ttk.Style()
         style.theme_use("clam")
 
@@ -230,7 +230,7 @@ class App:
         if effective_theme == "system":
             effective_theme = self._detect_system_theme()
 
-        # ------------------------------------------------------------------ Palette
+        # ------------------------------------------------------------------ Palette (centralized)
         if effective_theme == "dark":
             bg = "#1e1e26"           # Deep charcoal for main bg
             fg = "#e0e0e0"           # Light gray text
@@ -242,11 +242,11 @@ class App:
             accent_pressed = "#0a5bc4"
             entry_bg = "#333333"
             entry_fg = "#e0e0e0"
-            disabled_fg = "#757575"
+            disabled_fg = "#9aa0a6"   # Better contrast disabled text
+            disabled_bg = "#2a2a2d"   # Dark disabled background
             border = "#4a4a4a"
             hover_bg = "#333333"
             secondary_bg = "#2d2d26"
-            self.root.configure(bg=bg)
         else:
             bg = "#fafafa"           # Very light gray instead of pure white
             fg = "#202020"           # Near-black text
@@ -259,12 +259,13 @@ class App:
             entry_bg = "#ffffff"
             entry_fg = "#202020"
             disabled_fg = "#999999"
+            disabled_bg = "#e5e5e5"
             border = "#cccccc"
             hover_bg = "#f0f0f0"
             secondary_bg = "#f0f0f0"
-            self.root.configure(bg=bg)
+        self.root.configure(bg=bg)
 
-        # ------------------------------------------------------------------ Common widget styles
+        # Common widget styles
         style.configure("TFrame", background=bg)
         style.configure("TLabel", background=bg, foreground=fg)
         style.configure("TLabelframe", background=panel_bg, foreground=fg, bordercolor=border, borderwidth=1)
@@ -278,6 +279,11 @@ class App:
             borderwidth=1,
             relief="flat",
         )
+        style.map(
+            "TEntry",
+            fieldbackground=[("disabled", disabled_bg)],
+            foreground=[("disabled", disabled_fg)],
+        )
         style.configure(
             "TCombobox",
             fieldbackground=entry_bg,
@@ -286,6 +292,13 @@ class App:
             insertcolor=fg,
             borderwidth=1,
             relief="flat",
+        )
+        style.map(
+            "TCombobox",
+            fieldbackground=[("disabled", disabled_bg)],
+            foreground=[("disabled", disabled_fg)],
+            selectbackground=[("readonly", entry_bg)],
+            selectforeground=[("readonly", entry_fg)],
         )
 
         # Primary button - solid accent color with rounded look via padding
@@ -369,6 +382,38 @@ class App:
         self.root.option_add("*Text.insertBackground", fg)
         self.root.option_add("*Text.selectBackground", select_bg)
         self.root.option_add("*Text.selectForeground", select_fg)
+        self.root.option_add("*Text.disabledForeground", disabled_fg)
+        self.root.option_add("*Text.disabledBackground", disabled_bg)
+
+        # tk.Listbox (item log, etc.)
+        self.root.option_add("*Listbox.background", entry_bg)
+        self.root.option_add("*Listbox.foreground", entry_fg)
+        self.root.option_add("*Listbox.selectBackground", select_bg)
+        self.root.option_add("*Listbox.selectForeground", select_fg)
+        self.root.option_add("*Listbox.disabledForeground", disabled_fg)
+        self.root.option_add("*Listbox.disabledBackground", disabled_bg)
+
+        # tk.Scrollbar - match theme
+        self.root.option_add("*Scrollbar.background", panel_bg)
+        self.root.option_add("*Scrollbar.troughColor", bg)
+        self.root.option_add("*Scrollbar.activeBackground", border)
+        self.root.option_add("*Scrollbar.arrowColor", fg)
+
+        # tk.Menu / tk.OptionMenu dropdown
+        self.root.option_add("*Menu.background", panel_bg)
+        self.root.option_add("*Menu.foreground", fg)
+        self.root.option_add("*Menu.borderColor", border)
+        self.root.option_add("*Menu.selectColor", accent)
+        self.root.option_add("*Menu.selectForeground", "#ffffff")
+        self.root.option_add("*Menu.activeBackground", accent_hover)
+        self.root.option_add("*Menu.activeForeground", "#ffffff")
+        self.root.option_add("*Menu.disabledForeground", disabled_fg)
+        self.root.option_add("*OptionMenu.background", entry_bg)
+        self.root.option_add("*OptionMenu.foreground", entry_fg)
+
+        # Explicitly set canvas background to match root so no white dead space
+        self.root.option_add("*Canvas.background", bg)
+        self.root.option_add("*Canvas.highlightThickness", 0)
 
     def _toggle_theme(self):
         """Toggle between light and dark theme."""
