@@ -225,7 +225,12 @@ class App:
         style = ttk.Style()
         style.theme_use("clam")
 
-        if self.theme_var.get() == "dark":
+        # Resolve "system" to actual light/dark based on Windows setting
+        effective_theme = self.theme_var.get()
+        if effective_theme == "system":
+            effective_theme = self._detect_system_theme()
+
+        if effective_theme == "dark":
             bg = "#2d2d2d"
             fg = "#e0e0e0"
             select_bg = "#3d3d3d"
@@ -300,7 +305,7 @@ class App:
         self.pad = {"padx": 10, "pady": 5}
 
         # --- Dark mode support ---
-        self.theme_var = tk.StringVar(value=self.cfg.get("theme", "light"))
+        self.theme_var = tk.StringVar(value=self.cfg.get("theme", "system"))
         self._apply_theme()
 
         # App icon + version label at top right
@@ -776,17 +781,22 @@ class App:
         ttk.Button(opt, text="Apply", command=self.on_apply_options).pack(
             anchor="w", padx=6, pady=(0, 6))
 
-        # Theme: light / dark
+        # Theme: light / dark / system default
         theme_frame = ttk.LabelFrame(settings_tab, text="Appearance")
         theme_frame.grid(row=2, column=0, sticky="ew", **self.pad)
-        self.theme_combo_var = tk.StringVar(
-            value="Light" if self.theme_var.get() == "light" else "Dark"
-        )
+        saved_theme = self.cfg.get("theme", "system")
+        if saved_theme == "system":
+            self.theme_combo_var.set("System Default (Auto)")
+        elif saved_theme == "dark":
+            self.theme_combo_var.set("Dark")
+        else:
+            self.theme_combo_var.set("Light")
         ttk.Label(theme_frame, text="Theme:").grid(row=0, column=0, sticky="w", padx=6, pady=3)
         ttk.OptionMenu(
             theme_frame,
             self.theme_combo_var,
             self.theme_combo_var.get(),
+            "System Default (Auto)",
             "Light",
             "Dark",
             command=self._on_theme_combo_changed,
@@ -1439,15 +1449,34 @@ class App:
 
     def _on_theme_combo_changed(self, selection):
         """Handle theme dropdown change in Settings."""
-        new_theme = "dark" if selection == "Dark" else "light"
+        if selection == "System Default (Auto)":
+            # Try to detect system theme; fall back to light
+            new_theme = self._detect_system_theme()
+        else:
+            new_theme = "dark" if selection == "Dark" else "light"
         self.theme_var.set(new_theme)
         self.cfg["theme"] = new_theme
         save_config(self.cfg)
         self._apply_theme()
 
+    def _detect_system_theme(self):
+        """Detect Windows system theme preference. Falls back to 'light'."""
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            )
+            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            winreg.CloseKey(key)
+            return "light" if value == 1 else "dark"
+        except Exception:
+            return "light"
+
     def _on_pc_mode_changed(self):
         """Show/hide API key field and result area based on selected mode."""
-        is_api = self.pc_mode_var.get() == "api"
+        mode = self.pc_mode_var.get()
+        is_api = mode == "api"
         if is_api:
             self.pc_api_key_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 3))
             self.pc_result_frame.grid(row=3, column=0, sticky="ew", **self.pad)

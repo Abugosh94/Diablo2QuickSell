@@ -40,7 +40,7 @@ DEFAULT_TIMEFRAMES = ["Last 3 Days", "Last 7 Days", "Last 30 Days", "Lifetime", 
 
 PLATFORM_OPTIONS = ["PC", "PlayStation", "Xbox", "Switch"]
 
-LADDER_OPTIONS = ["Ladder", "Non-Ladder"]
+LADDER_OPTIONS = ["Non-Ladder", "Ladder"]
 
 HARDCORE_OPTIONS = ["Softcore", "Hardcore"]
 
