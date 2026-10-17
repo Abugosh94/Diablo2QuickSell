@@ -1,4 +1,4 @@
-﻿"""Quick-sell tooltip capture: YOLO tooltip crop for posting to trade sites.
+﻿"""Quick list tooltip capture: YOLO tooltip crop for posting to trade sites.
 
 No parsing, no profiles, no OCR - just capture the hovered tooltip image
 so it can be copied to the clipboard and pasted into a trading site.

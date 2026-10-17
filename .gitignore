@@ -10,6 +10,9 @@ venv/
 build/
 dist/
 *.exe
+*.iss
+*.spec
+_build_tmp.bat
 
 # Logs and temp files
 *.log

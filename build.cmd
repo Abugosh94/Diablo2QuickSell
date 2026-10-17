@@ -9,7 +9,7 @@ cd /d "D:\Addon test"
 rem --- clean previous artifacts --------------------------------------
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
-if exist D2InventoryScanner.spec del /q D2InventoryScanner.spec
+if exist D2TradeHelper.spec del /q D2TradeHelper.spec
 if exist build_out.log del /q build_out.log
 
 echo BUILD_STARTED %date% %time% > build_out.log
@@ -25,9 +25,10 @@ rem                  (torchvision provides NMS operator used by YOLO inference)
   --noconfirm --clean --onefile --noconsole ^
   --upx-dir "C:\upx-5.2.1-win64" ^
   --icon "Logo.ico" ^
-  --name Diablo2QuickSell ^
+  --name D2TradeHelper ^
   --add-data "tooltip_best_v6.pt;." ^
   --add-data "Logo.png;." ^
+  --add-data "Prompt.txt;." ^
   --collect-all ultralytics ^
   --collect-all torchvision ^
   --collect-all pystray ^

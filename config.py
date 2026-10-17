@@ -28,11 +28,25 @@ def app_dir():
 # _MEI temp dir - see app_dir() above.
 CONFIG_PATH = os.path.join(app_dir(), "config.json")
 
+
+def resource_path(relative_path):
+    """Get the absolute path to a resource, working for both source and
+    PyInstaller onefile exe. In a frozen exe, data files bundled with
+    --add-data live under sys._MEIPASS; otherwise they're next to the
+    script/exe."""
+    if getattr(sys, "frozen", False):
+        base = getattr(sys, "_MEIPASS", None)
+        if base and os.path.exists(os.path.join(base, relative_path)):
+            return os.path.join(base, relative_path)
+        return os.path.join(os.path.dirname(sys.executable), relative_path)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+
 DEFAULT_CONFIG = {
     "capture_window_title": "",  # empty = auto ('diablo'); any window-title substring
     "hotkeys": {
         "quick_list_item": "f9",
         "manual_crop_item": "f10",
+        "price_check_item": "f8",
         "quit": "ctrl+alt+q",
     },
     "browser": "default",
@@ -57,6 +71,19 @@ DEFAULT_CONFIG = {
     "regions": {
         "_comment": "Pixel regions as normalized 0..1 fractions of the game window. Tune for your resolution.",
         "tooltip": {"x": 0.30, "y": 0.10, "w": 0.40, "h": 0.50},
+    },
+    "price_check": {
+        "mode": "redirect",  # 'api' or 'redirect'
+        "ai_tool": "gemini",  # 'gemini', 'chatgpt', or 'custom:<name>'
+        "api_key": "",
+        "platform": "PC",
+        "ladder_status": "Ladder",
+        "hardcore_status": "Softcore",
+        "marketplaces": ["Traderie", "Diablo2.io", "Diablo.Trade"],
+        "timeframe": "Last 7 Days",
+        "custom_timeframe_days": 7,
+        "new_chat_each_time": True,  # True = new chat each price check, False = same chat
+        "custom_ai_tools": [],
     },
 }
 TRADING_SITE = DEFAULT_CONFIG["trading_site"]

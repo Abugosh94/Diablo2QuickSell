@@ -1,4 +1,4 @@
-﻿"""Diablo2QuickSell - tooltip crop + auto-post to trading sites.
+﻿"""D2TradeHelper - tooltip crop + auto-post to trading sites.
 
 Hover an item in game, press F9: the YOLO tooltip detector crops the
 tooltip, copies it to the clipboard, and opens your chosen trading site
@@ -135,7 +135,7 @@ class App:
         hk = HotkeyManager(handlers)
         bound = hk.start()
         print("[app] Hotkeys: " + ", ".join(f"{v}={k}" for k, v in bound.items()))
-        print("[app] Hover an item and press F9 to quick-sell. Ctrl+Alt+Q to quit.")
+        print("[app] Hover an item and press F9 to quick-list. Ctrl+Alt+Q to quit.")
         try:
             while self.running:
                 time.sleep(0.2)
@@ -151,19 +151,19 @@ def main():
     import win32event
     import win32api
 
-    MUTEX_NAME = "Diablo2QuickSell_SingleInstanceMutex"
+    MUTEX_NAME = "D2TradeHelper_SingleInstanceMutex"
     mutex = win32event.CreateMutex(None, False, MUTEX_NAME)
     if win32api.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
         import tkinter as tk
         from tkinter import messagebox
         root = tk.Tk()
         root.withdraw()
-        messagebox.showinfo("Diablo2QuickSell",
-                            "Another instance of Diablo2QuickSell is already running.")
+        messagebox.showinfo("D2TradeHelper",
+                            "Another instance of D2TradeHelper is already running.")
         root.destroy()
         return 1
 
-    ap = argparse.ArgumentParser(description="Diablo2QuickSell")
+    ap = argparse.ArgumentParser(description="D2TradeHelper")
     ap.add_argument("--console", action="store_true",
                     help="run in console hotkey mode instead of the GUI")
     args = ap.parse_args()

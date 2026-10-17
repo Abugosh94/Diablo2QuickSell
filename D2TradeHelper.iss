@@ -2,10 +2,10 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 ; Non-commercial use only.
 
-#define MyAppName "D2QuickSell"
+#define MyAppName "D2TradeHelper"
 #define MyAppVersion "0.1"
 #define MyAppPublisher "Droxea"
-#define MyAppExeName "Diablo2QuickSell.exe"
+#define MyAppExeName "D2TradeHelper.exe"
 #define MyAppAssocName MyAppName + " File"
 #define MyAppAssocExt ".myp"
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
@@ -34,7 +34,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 OutputDir=C:\Users\Asad\Desktop
-OutputBaseFilename=D2QuickSell
+OutputBaseFilename=D2TradeHelper
 SetupIconFile=D:\Addon test\Logo.ico
 SolidCompression=yes
 WizardStyle=modern dynamic

@@ -1,4 +1,4 @@
-"""Quick-sell tooltip poster for Diablo 2.
+"""Quick list tooltip poster for Diablo 2.
 
 Hover an item, press the hotkey: the YOLO tooltip detector crops the
 tooltip, copies it to the clipboard, and opens your chosen trading site
@@ -35,17 +35,26 @@ from config import (load_config, save_config, app_dir, get_trading_url,
                     TRADING_SITE_LABELS)
 from hotkeys import HotkeyManager, copy_image_to_clipboard, focus_browser_window
 from scanner import InventoryScanner
+from pricecheck import (
+    PriceChecker,
+    DEFAULT_AI_TOOLS,
+    PLATFORM_OPTIONS,
+    LADDER_OPTIONS,
+    HARDCORE_OPTIONS,
+    DEFAULT_TIMEFRAMES,
+    DEFAULT_MARKETPLACES,
+)
 
 # Keep a reference to the single-instance mutex so it isn't garbage-collected
 # and released while the app is running.
 if getattr(sys, "frozen", False):
     try:
         import win32event
-        _SINGLE_INSTANCE_MUTEX = win32event.CreateMutex(None, False, "Diablo2QuickSell_SingleInstanceMutex")
+        _SINGLE_INSTANCE_MUTEX = win32event.CreateMutex(None, False, "D2TradeHelper_SingleInstanceMutex")
     except Exception:
         pass
 
-APP_TITLE = "Diablo2QuickSell"
+APP_TITLE = "D2TradeHelper"
 APP_VERSION = "0.1"
 
 
@@ -200,6 +209,7 @@ class App:
     def __init__(self):
         self.cfg = load_config()
         self.scanner = InventoryScanner()
+        self.price_checker = PriceChecker(self.cfg)
         self.scanner.profile = {}
         self.recorder = None
         self.hotkey_mgr = None
@@ -221,7 +231,7 @@ class App:
         self.root.geometry("520x560")
         self.root.minsize(460, 480)
 
-        pad = {"padx": 10, "pady": 5}
+        self.pad = {"padx": 10, "pady": 5}
 
         # App icon + version label at top right
         try:
@@ -239,9 +249,294 @@ class App:
         notebook = ttk.Notebook(self.root)
         notebook.pack(fill="both", expand=True, padx=6, pady=6)
 
-        # ---- Tab 1: Scanner (scrollable) ----
+        # ---- Tab 1: Price Check (scrollable) ----
+        pc_tab = ttk.Frame(notebook)
+        notebook.add(pc_tab, text="Price Check")
+        pc_container = ttk.Frame(pc_tab)
+        pc_container.pack(fill="both", expand=True)
+        pc_canvas = tk.Canvas(pc_container, highlightthickness=0)
+        pc_vbar = ttk.Scrollbar(pc_container, orient="vertical", command=pc_canvas.yview)
+        pc_canvas.configure(yscrollcommand=pc_vbar.set)
+        pc_vbar.pack(side="right", fill="y")
+        pc_canvas.pack(side="left", fill="both", expand=True)
+        pc_body = ttk.Frame(pc_canvas)
+        pc_body.bind(
+            "<Configure>",
+            lambda e: pc_canvas.configure(scrollregion=pc_canvas.bbox("all")),
+        )
+        pc_canvas.create_window((0, 0), window=pc_body, anchor="nw", tags="pcbody")
+        pc_canvas.bind(
+            "<Configure>",
+            lambda e: pc_canvas.itemconfigure("pcbody", width=e.width),
+        )
+        # Mouse-wheel scrolling on the Price Check tab only
+        def _pc_wheel(e):
+            if notebook.index(notebook.select()) == 0:
+                pc_canvas.yview_scroll(-1 * (e.delta // 120), "units")
+        pc_canvas.bind_all("<MouseWheel>", _pc_wheel)
+        pc_body.columnconfigure(0, weight=1)
+        pc_body.rowconfigure(3, weight=1)
+
+        # ---- Mode selection ----
+        self.pc_mode_frame = ttk.LabelFrame(pc_body, text="How to get the price check")
+        self.pc_mode_frame.grid(row=0, column=0, sticky="ew", **self.pad)
+        self.pc_mode_frame.columnconfigure(1, weight=1)
+        self.pc_mode_frame.columnconfigure(2, weight=1)
+
+        self.pc_mode_var = tk.StringVar(
+            value=self.price_checker.get_config().get("mode", "redirect")
+        )
+        ttk.Radiobutton(
+            self.pc_mode_frame,
+            text="Use API key (result appears in this app)",
+            variable=self.pc_mode_var,
+            value="api",
+            command=self._on_pc_mode_changed,
+        ).grid(row=0, column=0, columnspan=3, sticky="w", padx=6, pady=3)
+        ttk.Radiobutton(
+            self.pc_mode_frame,
+            text="Redirect to AI tool (open in browser)",
+            variable=self.pc_mode_var,
+            value="redirect",
+            command=self._on_pc_mode_changed,
+        ).grid(row=1, column=0, columnspan=3, sticky="w", padx=6, pady=3)
+
+        # AI tool selector (next to redirect option)
+        self.pc_ai_tool_var = tk.StringVar()
+        ai_options = self.price_checker.get_ai_tool_options()
+        ai_labels = [label for _key, label, _url, _kb in ai_options]
+        ai_keys = [key for key, _label, _url, _kb in ai_options]
+        self._pc_ai_key_by_label = dict(zip(ai_labels, ai_keys))
+        # Map stored key back to label for display
+        stored_key = self.price_checker.get_config().get("ai_tool", "gemini")
+        stored_label = "Gemini"
+        for label, key in self._pc_ai_key_by_label.items():
+            if key == stored_key:
+                stored_label = label
+                break
+        self.pc_ai_tool_var.set(stored_label)
+        self.pc_ai_tool_label = ttk.Label(self.pc_mode_frame, text="AI tool:")
+        self.pc_ai_tool_label.grid(row=2, column=0, sticky="e", padx=6, pady=3)
+        self.pc_ai_tool_combo = ttk.Combobox(
+            self.pc_mode_frame,
+            textvariable=self.pc_ai_tool_var,
+            values=ai_labels,
+            width=18,
+            state="readonly",
+        )
+        self.pc_ai_tool_combo.grid(row=2, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        self.pc_ai_tool_combo.bind(
+            "<<ComboboxSelected>>", lambda e: self._on_pc_ai_tool_changed()
+        )
+
+        # Custom AI tool dialog is opened when "Add custom AI tool..." is selected
+        self.pc_custom_ai_name_var = tk.StringVar()
+        self.pc_custom_ai_url_var = tk.StringVar()
+        self.pc_custom_ai_keybind_var = tk.StringVar(value="ctrl+shift+o")
+        self._on_pc_ai_tool_changed()  # set initial visibility
+
+        # New chat behavior
+        self.pc_new_chat_var = tk.StringVar()
+        new_chat_each_time = self.price_checker.get_config().get("new_chat_each_time", True)
+        self.pc_new_chat_var.set(
+            "New chat each time" if new_chat_each_time else "Continue same chat"
+        )
+        ttk.Label(self.pc_mode_frame, text="New chat behavior:").grid(
+            row=3, column=0, sticky="e", padx=6, pady=3
+        )
+        self.pc_new_chat_combo = ttk.Combobox(
+            self.pc_mode_frame,
+            textvariable=self.pc_new_chat_var,
+            values=["New chat each time", "Continue same chat"],
+            width=18,
+            state="readonly",
+        )
+        self.pc_new_chat_combo.grid(row=3, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+
+        # Key bind display
+        self.pc_keybind_var = tk.StringVar()
+        self.pc_keybind_label = ttk.Label(
+            self.pc_mode_frame,
+            textvariable=self.pc_keybind_var,
+            foreground="#666",
+        )
+        self.pc_keybind_label.grid(row=4, column=0, columnspan=3, sticky="w", padx=6, pady=3)
+        self._refresh_pc_keybind_label()
+
+        # Clarification: API key is in Settings
+        ttk.Label(
+            self.pc_mode_frame,
+            text="API key is configured in Settings → API Key",
+            foreground="#666",
+            font=("Segoe UI", 8),
+        ).grid(row=5, column=0, columnspan=3, sticky="w", padx=6, pady=(0, 3))
+
+        # ---- Item variables ----
+        var_frame = ttk.LabelFrame(pc_body, text="Item variables (filled into the AI prompt)")
+        var_frame.grid(row=1, column=0, sticky="ew", **self.pad)
+        var_frame.columnconfigure(1, weight=1)
+
+        # Platform (fixed to PC)
+        ttk.Label(var_frame, text="Platform:").grid(
+            row=0, column=0, sticky="w", padx=6, pady=3
+        )
+        self.pc_platform_var = tk.StringVar(value="PC")
+        ttk.Label(var_frame, text="PC").grid(
+            row=0, column=1, sticky="w", padx=6, pady=3
+        )
+
+        # Game Mode (Ladder / Non-Ladder)
+        ttk.Label(var_frame, text="Game Mode:").grid(
+            row=1, column=0, sticky="w", padx=6, pady=3
+        )
+        self.pc_ladder_var = tk.StringVar(
+            value=self.price_checker.get_config().get("ladder_status", "Ladder")
+        )
+        ladder_frame = ttk.Frame(var_frame)
+        ladder_frame.grid(row=1, column=1, sticky="w", padx=6, pady=3)
+        for opt in LADDER_OPTIONS:
+            ttk.Radiobutton(
+                ladder_frame,
+                text=opt,
+                variable=self.pc_ladder_var,
+                value=opt,
+            ).pack(side="left", padx=(0, 8))
+
+        # Softcore / Hardcore
+        ttk.Label(var_frame, text="Softcore / Hardcore:").grid(
+            row=2, column=0, sticky="w", padx=6, pady=3
+        )
+        self.pc_hardcore_var = tk.StringVar(
+            value=self.price_checker.get_config().get("hardcore_status", "Softcore")
+        )
+        hc_frame = ttk.Frame(var_frame)
+        hc_frame.grid(row=2, column=1, sticky="w", padx=6, pady=3)
+        for opt in HARDCORE_OPTIONS:
+            ttk.Radiobutton(
+                hc_frame,
+                text=opt,
+                variable=self.pc_hardcore_var,
+                value=opt,
+            ).pack(side="left", padx=(0, 8))
+
+        # Marketplaces (max 5, add/remove only - no clicking to select)
+        ttk.Label(var_frame, text="Marketplaces:").grid(
+            row=3, column=0, sticky="nw", padx=6, pady=3
+        )
+        mp_frame = ttk.Frame(var_frame)
+        mp_frame.grid(row=3, column=1, sticky="ew", padx=6, pady=3)
+        mp_frame.columnconfigure(0, weight=1)
+        self.pc_marketplace_listbox = tk.Listbox(
+            mp_frame,
+            selectmode="none",
+            height=4,
+            exportselection=False,
+        )
+        self.pc_marketplace_listbox.grid(row=0, column=0, sticky="ew")
+        saved_mps = self.price_checker.get_config().get("marketplaces", [])
+        if not saved_mps:
+            saved_mps = list(DEFAULT_MARKETPLACES)
+        for mp in saved_mps:
+            self.pc_marketplace_listbox.insert(tk.END, mp)
+        mp_scroll = ttk.Scrollbar(
+            mp_frame, orient="vertical", command=self.pc_marketplace_listbox.yview
+        )
+        mp_scroll.grid(row=0, column=1, sticky="ns")
+        self.pc_marketplace_listbox.configure(yscrollcommand=mp_scroll.set)
+
+        mp_btn_frame = ttk.Frame(mp_frame)
+        mp_btn_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+        self.pc_custom_marketplace_var = tk.StringVar()
+        ttk.Entry(
+            mp_btn_frame, textvariable=self.pc_custom_marketplace_var, width=24
+        ).pack(side="left", padx=(0, 4))
+        ttk.Button(
+            mp_btn_frame,
+            text="Add",
+            command=self._on_pc_add_marketplace,
+        ).pack(side="left", padx=(0, 4))
+        ttk.Button(
+            mp_btn_frame,
+            text="Remove",
+            command=self._on_pc_remove_marketplace,
+        ).pack(side="left")
+
+        # Price History Window
+        ttk.Label(var_frame, text="Price History Window:").grid(
+            row=4, column=0, sticky="w", padx=6, pady=3
+        )
+        self.pc_timeframe_var = tk.StringVar(
+            value=self.price_checker.get_config().get("timeframe", "Last 7 Days")
+        )
+        tf_frame = ttk.Frame(var_frame)
+        tf_frame.grid(row=4, column=1, sticky="w", padx=6, pady=3)
+        self.pc_timeframe_combo = ttk.Combobox(
+            tf_frame,
+            textvariable=self.pc_timeframe_var,
+            values=DEFAULT_TIMEFRAMES,
+            width=18,
+            state="readonly",
+        )
+        self.pc_timeframe_combo.pack(side="left")
+        # Custom days entry (shown only when Custom is selected)
+        self.pc_custom_days_var = tk.StringVar(
+            value=str(self.price_checker.get_config().get("custom_timeframe_days", 7))
+        )
+        self.pc_custom_days_entry = ttk.Entry(
+            tf_frame, textvariable=self.pc_custom_days_var, width=6
+        )
+        self.pc_custom_days_label = ttk.Label(tf_frame, text="days")
+        self._on_pc_timeframe_changed()  # set initial visibility
+        self.pc_timeframe_var.trace_add("write", lambda *_: self._on_pc_timeframe_changed())
+
+        # ---- Key Bind Label (use hotkey to trigger price check) ----
+        self.pc_bind_label_frame = ttk.Frame(pc_body)
+        self.pc_bind_label_frame.grid(row=2, column=0, sticky="ew", **self.pad)
+        self.pc_bind_label_frame.columnconfigure(0, weight=1)
+        ttk.Label(
+            self.pc_bind_label_frame,
+            textvariable=self.pc_keybind_var,
+            foreground="#666",
+            font=("Segoe UI", 9, "bold"),
+        ).grid(row=0, column=0, sticky="w", padx=6, pady=3)
+        ttk.Label(
+            self.pc_bind_label_frame,
+            text="Hover an item in game and press the hotkey to price check.",
+            foreground="#666",
+            font=("Segoe UI", 8),
+        ).grid(row=1, column=0, sticky="w", padx=6, pady=(0, 3))
+
+        # ---- Result area (shown only in API mode) ----
+        self.pc_result_frame = ttk.LabelFrame(pc_body, text="Price Check Result")
+        self.pc_result_frame.grid(row=3, column=0, sticky="nsew", **self.pad)
+        self.pc_result_frame.columnconfigure(0, weight=1)
+        self.pc_result_frame.rowconfigure(0, weight=1)
+        self.pc_result_text = tk.Text(
+            self.pc_result_frame, height=10, width=52, wrap="word", font=("Consolas", 9)
+        )
+        self.pc_result_text.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
+        pc_result_scroll = ttk.Scrollbar(
+            self.pc_result_frame, orient="vertical", command=self.pc_result_text.yview
+        )
+        pc_result_scroll.grid(row=0, column=1, sticky="ns")
+        self.pc_result_text.configure(yscrollcommand=pc_result_scroll.set)
+
+        # Initially hide result area if not in API mode
+        if self.pc_mode_var.get() != "api":
+            self.pc_result_frame.grid_forget()
+
+        self.pc_status_var = tk.StringVar(
+            value="Idle. Capture a tooltip and click Price Check."
+        )
+        ttk.Label(
+            pc_body,
+            textvariable=self.pc_status_var,
+            wraplength=460,
+            foreground="#444",
+        ).grid(row=4, column=0, sticky="ew", **self.pad)
+
         scanner_tab = ttk.Frame(notebook)
-        notebook.add(scanner_tab, text="Quick-Sell")
+        notebook.add(scanner_tab, text="Quick List")
         container = ttk.Frame(scanner_tab)
         container.pack(fill="both", expand=True)
         canvas = tk.Canvas(container, highlightthickness=0)
@@ -253,9 +548,9 @@ class App:
         body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.create_window((0, 0), window=body, anchor="nw", tags="body")
         canvas.bind("<Configure>", lambda e: canvas.itemconfigure("body", width=e.width))
-        # Mouse-wheel scrolling (scanner tab only)
+        # Mouse-wheel scrolling (scanner tab only) - now tab index 1
         def _wheel(e):
-            if notebook.index(notebook.select()) == 0:
+            if notebook.index(notebook.select()) == 1:
                 canvas.yview_scroll(-1 * (e.delta // 120), "units")
         canvas.bind_all("<MouseWheel>", _wheel)
 
@@ -265,11 +560,11 @@ class App:
 
         self.status_var = tk.StringVar(value="Idle. Hover item and press hotkey to post.")
         ttk.Label(body, textvariable=self.status_var, wraplength=460,
-                  foreground="#444").pack(fill="x", **pad)
+                  foreground="#444").pack(fill="x", **self.pad)
 
-        # ---- Trading site section (Quick-Sell tab) ----
+        # ---- Trading site section (Quick List tab) ----
         site_frame = ttk.LabelFrame(body, text="Trading Site")
-        site_frame.pack(fill="x", **pad)
+        site_frame.pack(fill="x", **self.pad)
 
         row1 = ttk.Frame(site_frame)
         row1.pack(fill="x", padx=8, pady=(6, 2))
@@ -296,7 +591,7 @@ class App:
         # Main action buttons
         btn_frame = ttk.Frame(body)
         btn_frame.pack(pady=14)
-        ttk.Button(btn_frame, text="Quick-Sell Hovered Item (F9)",
+        ttk.Button(btn_frame, text="Quick List Hovered Item (F9)",
                    command=self.on_quick_list).pack(pady=4)
         ttk.Button(btn_frame, text="Manual Crop + Post (F10)",
                    command=self.on_manual_crop_item).pack(pady=4)
@@ -325,7 +620,7 @@ class App:
 
 
 
-        # ---- Tab 2: Settings (scrollable) ----
+        # ---- Tab 3: Settings (scrollable) ----
         settings_outer = ttk.Frame(notebook)
         notebook.add(settings_outer, text="Settings")
         s_canvas = tk.Canvas(settings_outer, highlightthickness=0)
@@ -339,22 +634,23 @@ class App:
         s_canvas.create_window((0, 0), window=settings_tab, anchor="nw", tags="sbody")
         s_canvas.bind("<Configure>",
                       lambda e: s_canvas.itemconfigure("sbody", width=e.width))
-        # Mouse-wheel scrolling on the Settings tab only
+        # Mouse-wheel scrolling on the Settings tab only - now tab index 2
         def _s_wheel(e):
-            if notebook.index(notebook.select()) == 1:
+            if notebook.index(notebook.select()) == 2:
                 s_canvas.yview_scroll(-1 * (e.delta // 120), "units")
         s_canvas.bind("<MouseWheel>", _s_wheel)
         settings_tab.columnconfigure(0, weight=1)
 
         # Keybinds: click a field, then press the desired key combo
         kb = ttk.LabelFrame(settings_tab, text="Keybinds (click a field, then press a key)")
-        kb.grid(row=0, column=0, sticky="ew", **pad)
+        kb.grid(row=0, column=0, sticky="ew", **self.pad)
         self.bind_vars = {}
         self.bind_entries = {}
         self._bind_listener = None
         row = 0
         for name, label in [("quick_list_item", "Quick-list hovered item"),
                             ("manual_crop_item", "Manual crop + post"),
+                            ("price_check_item", "Price check item"),
                             ("quit", "Quit app")]:
             ttk.Label(kb, text=label).grid(row=row, column=0, sticky="w", padx=6, pady=3)
             var = tk.StringVar(value=self._current_bind(name))
@@ -369,7 +665,7 @@ class App:
 
         # Options: close behavior + start with windows
         opt = ttk.LabelFrame(settings_tab, text="App behavior")
-        opt.grid(row=1, column=0, sticky="ew", **pad)
+        opt.grid(row=1, column=0, sticky="ew", **self.pad)
         self.close_var = tk.StringVar(
             value=self.cfg.get("close_behavior", "minimize"))
         ttk.Radiobutton(opt, text="On close: exit the app",
@@ -388,9 +684,41 @@ class App:
                         ).pack(anchor="w", padx=6, pady=(2, 6))
         ttk.Button(opt, text="Apply", command=self.on_apply_options).pack(
             anchor="w", padx=6, pady=(0, 6))
+
+        # API Key (for Price Check API mode)
+        api_frame = ttk.LabelFrame(settings_tab, text="API Key (Price Check)")
+        api_frame.grid(row=2, column=0, sticky="ew", **self.pad)
+        api_frame.columnconfigure(0, weight=1)
+        self.pc_settings_api_key_var = tk.StringVar(
+            value=self.cfg.get("price_check", {}).get("api_key", "")
+        )
+        self.pc_settings_api_key_entry = ttk.Entry(
+            api_frame, textvariable=self.pc_settings_api_key_var, width=40, show="*"
+        )
+        self.pc_settings_api_key_entry.grid(row=0, column=0, sticky="ew", padx=6, pady=4)
+        self.pc_settings_api_show_var = tk.BooleanVar(value=False)
+        self.pc_settings_api_show_cb = ttk.Checkbutton(
+            api_frame,
+            text="Show key",
+            variable=self.pc_settings_api_show_var,
+            command=self._on_pc_settings_api_show_toggle,
+        )
+        self.pc_settings_api_show_cb.grid(row=0, column=1, padx=6, pady=4)
+        ttk.Button(
+            api_frame,
+            text="Save API Key",
+            command=self.on_save_pc_api_key,
+        ).grid(row=1, column=0, sticky="w", padx=6, pady=(0, 4))
+        ttk.Label(
+            api_frame,
+            text="Used only when Price Check mode is set to 'Use API key'.",
+            foreground="#666",
+            font=("Segoe UI", 8),
+        ).grid(row=1, column=1, sticky="w", padx=6, pady=(0, 4))
+
         # Capture source: which window/screen the tool captures from
         src_frame = ttk.LabelFrame(settings_tab, text="Capture source")
-        src_frame.grid(row=2, column=0, sticky="ew", **pad)
+        src_frame.grid(row=2, column=0, sticky="ew", **self.pad)
         ttk.Label(src_frame, text="Window to capture from (matched by title):",
                   wraplength=430).pack(anchor="w", padx=6, pady=(4, 0))
         self.source_combo = ttk.Combobox(src_frame, width=44)
@@ -1026,6 +1354,220 @@ class App:
                 self._set_status(f"Manual crop failed: {e}")
         threading.Thread(target=_run, daemon=True).start()
 
+    # ------------------------------------------------ Price Check handlers
+
+    def _refresh_pc_keybind_label(self):
+        """Show the current price check key bind next to the button."""
+        bind = self.cfg.get("hotkeys", {}).get("price_check_item", "f8")
+        self.pc_keybind_var.set(f"Key bind: {bind.upper()}")
+
+    def _on_pc_settings_api_show_toggle(self):
+        """Toggle API key visibility in the Settings entry."""
+        show = self.pc_settings_api_show_var.get()
+        self.pc_settings_api_key_entry.configure(show="" if show else "*")
+
+    def on_save_pc_api_key(self):
+        """Save the API key from the Settings page into config."""
+        key = self.pc_settings_api_key_var.get().strip()
+        pc_cfg = self.cfg.setdefault("price_check", {})
+        pc_cfg["api_key"] = key
+        save_config(self.cfg)
+        self._set_status("API key saved.")
+
+    def _on_pc_mode_changed(self):
+        """Enable/disable the API key field based on the selected mode,
+        and show/hide the result area (API mode only)."""
+        is_api = self.pc_mode_var.get() == "api"
+        if is_api:
+            self.pc_result_frame.grid(row=3, column=0, sticky="ew", **self.pad)
+        else:
+            self.pc_result_frame.grid_forget()
+
+    def _on_pc_add_marketplace(self):
+        """Add a user-typed marketplace to the listbox (max 5)."""
+        name = self.pc_custom_marketplace_var.get().strip()
+        if not name:
+            return
+        # Avoid duplicates
+        existing = self.pc_marketplace_listbox.get(0, tk.END)
+        if name in existing:
+            self._set_status(f"'{name}' is already in the marketplace list.")
+            return
+        # Limit to 5
+        if self.pc_marketplace_listbox.size() >= 5:
+            self._set_status("Maximum of 5 marketplaces reached.")
+            return
+        self.pc_marketplace_listbox.insert(tk.END, name)
+        self.pc_custom_marketplace_var.set("")
+        self._set_status(f"Added marketplace: {name}")
+
+    def _on_pc_remove_marketplace(self):
+        """Remove the currently selected marketplace from the listbox."""
+        sel = self.pc_marketplace_listbox.curselection()
+        if not sel:
+            self._set_status("Select a marketplace to remove.")
+            return
+        name = self.pc_marketplace_listbox.get(sel[0])
+        self.pc_marketplace_listbox.delete(sel[0])
+        self._set_status(f"Removed marketplace: {name}")
+
+    def _on_pc_timeframe_changed(self):
+        """Show/hide the custom days entry based on timeframe selection."""
+        is_custom = self.pc_timeframe_var.get() == "Custom"
+        if is_custom:
+            self.pc_custom_days_entry.pack(side="left", padx=(6, 0))
+            self.pc_custom_days_label.pack(side="left", padx=(0, 4))
+        else:
+            self.pc_custom_days_entry.pack_forget()
+            self.pc_custom_days_label.pack_forget()
+
+    def _on_pc_ai_tool_changed(self):
+        """Open a dialog to add a custom AI tool when selected from dropdown."""
+        selected = self.pc_ai_tool_var.get()
+        if selected == "Add custom AI tool...":
+            # Reset selection so user can pick a real tool after adding custom one
+            self.pc_ai_tool_var.set(self.price_checker.get_config().get("ai_tool", "gemini"))
+            self._open_custom_ai_tool_dialog()
+
+    def _open_custom_ai_tool_dialog(self):
+        """Open a modal dialog to add a custom AI tool (name + URL + keybind)."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add Custom AI Tool")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        # Center on parent
+        dialog.update_idletasks()
+        x = self.root.winfo_rootx() + 50
+        y = self.root.winfo_rooty() + 50
+        dialog.geometry(f"+{x}+{y}")
+
+        frame = ttk.Frame(dialog, padding=20)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(frame, text="AI Tool Name:").grid(row=0, column=0, sticky="w", pady=(0, 5))
+        name_entry = ttk.Entry(frame, textvariable=self.pc_custom_ai_name_var, width=40)
+        name_entry.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        name_entry.focus_set()
+
+        ttk.Label(frame, text="URL (e.g. https://example.com):").grid(row=2, column=0, sticky="w", pady=(0, 5))
+        url_entry = ttk.Entry(frame, textvariable=self.pc_custom_ai_url_var, width=40)
+        url_entry.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+
+        ttk.Label(frame, text="New chat keybind (e.g. ctrl+shift+o):").grid(row=4, column=0, sticky="w", pady=(0, 5))
+        keybind_entry = ttk.Entry(frame, textvariable=self.pc_custom_ai_keybind_var, width=40)
+        keybind_entry.grid(row=5, column=0, sticky="ew", pady=(0, 20))
+
+        frame.columnconfigure(0, weight=1)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.grid(row=6, column=0, sticky="e")
+
+        def _save():
+            name = self.pc_custom_ai_name_var.get().strip()
+            url = self.pc_custom_ai_url_var.get().strip()
+            keybind = self.pc_custom_ai_keybind_var.get().strip()
+            if not name or not url:
+                self._set_status("Please enter both name and URL.")
+                return
+            try:
+                key = self.price_checker.save_custom_ai_tool(name, url, keybind)
+                # Refresh dropdown
+                ai_options = self.price_checker.get_ai_tool_options()
+                ai_labels = [label for _key, label, _url, _kb in ai_options]
+                ai_keys = [key for key, _label, _url, _kb in ai_options]
+                self.pc_ai_tool_combo["values"] = ai_labels
+                self._pc_ai_key_by_label = dict(zip(ai_labels, ai_keys))
+                for lbl, k in zip(ai_labels, ai_keys):
+                    if k == key:
+                        self.pc_ai_tool_var.set(lbl)
+                        break
+                dialog.destroy()
+                self._set_status(f"Custom AI tool '{name}' saved.")
+            except ValueError as e:
+                self._set_status(str(e))
+
+        ttk.Button(btn_frame, text="Save", command=_save).pack(side="left", padx=(0, 10))
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side="left")
+
+        dialog.wait_window(dialog)
+
+    def on_price_check(self):
+        """Gather user selections, fill the prompt, capture the tooltip,
+        and run the price check (API or redirect mode)."""
+        pc_cfg = self.price_checker.get_config()
+
+        # Persist current selections to config
+        pc_cfg["mode"] = self.pc_mode_var.get()
+        ai_label = self.pc_ai_tool_var.get()
+        pc_cfg["ai_tool"] = self._pc_ai_key_by_label.get(ai_label, "gemini")
+        pc_cfg["api_key"] = pc_cfg.get("api_key", "")  # API key lives in Settings
+        pc_cfg["platform"] = "PC"  # always fixed to PC
+        pc_cfg["ladder_status"] = self.pc_ladder_var.get()
+        pc_cfg["hardcore_status"] = self.pc_hardcore_var.get()
+        # All items in the listbox (no selection-based filtering)
+        pc_cfg["marketplaces"] = list(self.pc_marketplace_listbox.get(0, tk.END))
+        if not pc_cfg["marketplaces"]:
+            pc_cfg["marketplaces"] = list(DEFAULT_MARKETPLACES)
+        tf = self.pc_timeframe_var.get()
+        pc_cfg["timeframe"] = tf
+        if tf == "Custom":
+            try:
+                days = int(self.pc_custom_days_var.get().strip())
+                if days < 1:
+                    days = 1
+            except ValueError:
+                days = 7
+            pc_cfg["custom_timeframe_days"] = days
+            pc_cfg["timeframe"] = f"Last {days} Days"
+        # Save new chat behavior preference
+        pc_cfg["new_chat_each_time"] = (
+            self.pc_new_chat_var.get() == "New chat each time"
+        )
+        self.price_checker.save()
+
+        # Build variables dict for prompt substitution
+        variables = {
+            "Game Mode": pc_cfg["ladder_status"],
+            "Softcore / Hardcore": pc_cfg["hardcore_status"],
+            "selected_trading_websites": ", ".join(pc_cfg["marketplaces"]),
+            "Price History Window": pc_cfg["timeframe"],
+        }
+
+        mode = pc_cfg["mode"]
+        ai_tool = pc_cfg["ai_tool"]
+        api_key = pc_cfg["api_key"]
+
+        # Only show result text in API mode; redirect mode just opens the browser
+        if mode == "api":
+            self.pc_result_text.delete("1.0", tk.END)
+            self.pc_result_text.insert(tk.END, "Running price check...\n")
+        self.pc_status_var.set("Capturing tooltip and contacting AI...")
+
+        def _on_result(success, message):
+            self.root.after(0, lambda: self._pc_on_result(success, message))
+
+        self.price_checker.run(mode, ai_tool, api_key, variables, _on_result)
+
+    def _pc_on_result(self, success, message):
+        """Callback invoked on the main thread when the price check finishes."""
+        # Only display result text in API mode; redirect mode handled by browser
+        if self.pc_mode_var.get() == "api":
+            self.pc_result_text.delete("1.0", tk.END)
+            if success:
+                self.pc_result_text.insert(tk.END, message)
+                self.pc_status_var.set("Price check complete.")
+            else:
+                self.pc_result_text.insert(tk.END, f"Error: {message}")
+                self.pc_status_var.set("Price check failed.")
+        else:
+            # Redirect mode: the browser was already opened by pricecheck.py
+            if success:
+                self.pc_status_var.set("Opened AI tool in browser - paste prompt + screenshot.")
+            else:
+                self.pc_status_var.set(f"Redirect failed: {message}")
+
     def _on_toggle_manual_override(self):
         """Settings checkbox: apply + save immediately."""
         self.cfg["manual_screenshot_override"] = bool(self.manual_override_var.get())
@@ -1063,6 +1605,7 @@ class App:
         handlers = {
             "quick_list_item": self.on_quick_list,
             "manual_crop_item": self.on_manual_crop_item,
+            "price_check_item": self.on_price_check,
             "quit": self._on_close,
         }
         self.hotkey_mgr = HotkeyManager(handlers)
@@ -1130,7 +1673,7 @@ class App:
     def _prompt_close_behavior(self):
         """First-time exit: prompt the user to choose minimize-to-tray or exit."""
         choice = messagebox.askyesnocancel(
-            "Diablo2QuickSell - Close behavior",
+            "D2TradeHelper - Close behavior",
             "When you close the window, what would you like to do?\n\n"
             "  Yes  → Minimize to system tray (app keeps running in background)\n"
             "  No   → Exit the app completely\n"

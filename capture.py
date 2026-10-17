@@ -117,9 +117,9 @@ def capture_full_window():
     """Grab a full screenshot of the game window.
 
     Returns (bgr_img, (left, top, w, h)) or (None, None) when the window is
-    not found. When save_captures is on, also saves the screenshot to
-    captures/full_window_*.jpg - diagnostics for imprecise detections AND
-    ready-made training material for item types the model doesn't know."""
+    not found. Full screenshots are NOT saved - only cropped tooltips are
+    kept under captures/.
+    """
     rect = get_game_window_rect()
     if rect is None:
         print("[capture] Diablo window not found - not capturing")
@@ -128,8 +128,6 @@ def capture_full_window():
     with mss.mss() as sct:
         shot = sct.grab({"left": l, "top": t, "width": w, "height": h})
     img = np.array(shot)[:, :, :3]
-    if _cfg["scan"].get("save_captures"):
-        save_capture(img, "full_window", max_size_mb=1)
     return img, rect
 
 
@@ -389,14 +387,6 @@ def capture_tooltip_yolo(conf_thres=0.5):
     with mss.mss() as sct:
         shot = sct.grab({"left": l, "top": t, "width": w, "height": h})
     full = np.array(shot)[:, :, :3]  # BGR
-    if _cfg["scan"].get("save_captures"):
-        # Bank the FULL screenshot (diagnostics + training material) OFF the
-        # critical path: JPEG-encoding 2 MP costs 100-300 ms and would delay
-        # the browser opening on every F9 press.
-        _snap = full.copy()
-        threading.Thread(
-            target=lambda im=_snap: save_capture(im, "full_window", max_size_mb=1),
-            daemon=True).start()
 
     results = model(full, verbose=False, conf=conf_thres)
     cx, cy = get_cursor_pos()
@@ -452,7 +442,7 @@ def capture_tooltip_yolo(conf_thres=0.5):
     print(f"[yolo] tooltip detected: conf={best_conf:.2f} "
           f"box={best_box} size={best.shape[1]}x{best.shape[0]}")
     if _cfg["scan"].get("save_captures"):
-        # async, off the critical path (see full_window note above)
+        # async, off the critical path
         _crop_snap = best.copy()
         threading.Thread(
             target=lambda im=_crop_snap: save_capture(im, "tooltip_yolo", max_size_mb=1),

@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('tooltip_best_v6.pt', '.'), ('Logo.png', '.')]
+datas = [('tooltip_best_v6.pt', '.'), ('Logo.png', '.'), ('Prompt.txt', '.')]
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all('ultralytics')
@@ -35,7 +35,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Diablo2QuickSell',
+    name='D2TradeHelper',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

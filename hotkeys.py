@@ -168,7 +168,7 @@ def copy_text_to_clipboard(text):
 
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-APP_NAME = "Diablo2QuickSell"
+APP_NAME = "D2TradeHelper"
 
 
 def set_start_with_windows(enabled, exe_path=None):
@@ -220,7 +220,7 @@ def focus_browser_window(url_hint=None, timeout=4.0):
     was minimized / behind the game, the tab never becomes visible and the
     auto-paste lands nowhere. This finds the top-level browser window
     whose title contains a hint from the URL (domain or page title) and
-    restores + focuses it, so the quick-sell page is actually visible.
+    restores + focuses it, so the quick-list page is actually visible.
 
     Best effort: returns True when a window was focused, False otherwise
     (the paste logic still runs - if the user focuses the browser in time,
@@ -240,6 +240,12 @@ def focus_browser_window(url_hint=None, timeout=4.0):
             netloc = urlparse(low if "://" in low else "https://" + low).netloc
             if netloc:
                 hints.append(netloc.replace("www.", "").split(":")[0])
+                # Add AI-tool-specific short hints (window titles show page
+                # names, not full domains)
+                if "gemini" in low:
+                    hints += ["gemini"]
+                elif "chatgpt" in low or "openai" in low:
+                    hints += ["chatgpt"]
         except Exception:
             pass
         hints += ["diablo2", "diablo.trade", "diablo trade",
@@ -337,7 +343,7 @@ def focus_and_paste(url=None, max_wait=4.0, min_settle=0.2, baseline_hwnd=None):
 
     Two-stage wait:
       1. Wait until the foreground is NOT the baseline window (the game at
-         quick-sell time). Callers pass the baseline captured BEFORE the
+         quick-list time). Callers pass the baseline captured BEFORE the
          browser opened; if focus_browser_window() already brought the tab
          front, this breaks immediately instead of waiting a full timeout.
       2. Once the browser window is in front, wait for its PAGE to finish
@@ -347,7 +353,7 @@ def focus_and_paste(url=None, max_wait=4.0, min_settle=0.2, baseline_hwnd=None):
 
     Timings are deliberately tight (0.1s polls, 0.4s stability, 0.2s
     settle) - the original 1.0+1.0s scheme added ~2s of dead time on
-    every quick-sell.
+    every quick-list.
 
     Best effort: if the browser never takes the foreground the paste fires
     after max_wait anyway.
@@ -374,7 +380,7 @@ def focus_and_paste(url=None, max_wait=4.0, min_settle=0.2, baseline_hwnd=None):
             return buf.value.strip()
 
         # 1) foreground switch (browser window opening)
-        start_hwnd = baseline_hwnd or fg_hwnd()   # the game, at quick-sell time
+        start_hwnd = baseline_hwnd or fg_hwnd()   # the game, at quick-list time
         t0 = time.time()
         while time.time() - t0 < max_wait:
             cur = fg_hwnd()
