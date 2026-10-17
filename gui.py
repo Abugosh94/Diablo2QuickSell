@@ -418,38 +418,87 @@ class App:
             effective_theme = self._detect_system_theme()
 
         # ------------------------------------------------------------------ Palette (centralized)
+        # Dark mode colors
+        DARK_PALETTE = {
+            "bg": "#1e1e26",
+            "fg": "#e0e0e0",
+            "panel_bg": "#252526",
+            "select_bg": "#3c3c45",
+            "select_fg": "#ffffff",
+            "accent": "#4f46e5",
+            "accent_hover": "#6366f1",
+            "accent_pressed": "#4338ca",
+            "entry_bg": "#333333",
+            "entry_fg": "#e0e0e0",
+            "disabled_fg": "#9aa0a6",
+            "disabled_bg": "#2a2a2d",
+            "border": "#4a4a4a",
+            "hover_bg": "#333333",
+            "secondary_bg": "#2a2e3d",
+            "secondary_hover": "#dc2626",
+            "secondary_pressed": "#b91c1c",
+            "secondary_text": "#ffffff",
+            "secondary_border": "#3f3f46",
+            "secondary_disabled_bg": "#3a3a42",
+            "secondary_disabled_fg": "#8a8a9a",
+            "primary_disabled_bg": "#5a5a5a",
+            "primary_disabled_fg": "#aaaaaa",
+        }
+        # Light mode colors
+        LIGHT_PALETTE = {
+            "bg": "#fafafa",
+            "fg": "#202020",
+            "panel_bg": "#f0f0f0",
+            "select_bg": "#e8f1fe",
+            "select_fg": "#000000",
+            "accent": "#4f46e5",
+            "accent_hover": "#4338ca",
+            "accent_pressed": "#3730a3",
+            "entry_bg": "#ffffff",
+            "entry_fg": "#202020",
+            "disabled_fg": "#999999",
+            "disabled_bg": "#e5e5e5",
+            "border": "#cccccc",
+            "hover_bg": "#f0f0f0",
+            "secondary_bg": "#e2e8f0",
+            "secondary_hover": "#ef4444",
+            "secondary_pressed": "#dc2626",
+            "secondary_text": "#1e293b",
+            "secondary_border": "#cbd5e1",
+            "secondary_disabled_bg": "#f1f5f9",
+            "secondary_disabled_fg": "#94a3b8",
+            "primary_disabled_bg": "#e5e5e5",
+            "primary_disabled_fg": "#999999",
+        }
+
         if effective_theme == "dark":
-            bg = "#1e1e26"           # Deep charcoal for main bg
-            fg = "#e0e0e0"           # Light gray text
-            panel_bg = "#252526"     # Slightly lighter panels
-            select_bg = "#3c3c45"    # Selection background
-            select_fg = "#ffffff"
-            accent = "#6366f1"       # Modern indigo accent
-            accent_hover = "#818cf8"
-            accent_pressed = "#4f46e5"
-            entry_bg = "#333333"
-            entry_fg = "#e0e0e0"
-            disabled_fg = "#9aa0a6"   # Better contrast disabled text
-            disabled_bg = "#2a2a2d"   # Dark disabled background
-            border = "#4a4a4a"
-            hover_bg = "#333333"
-            secondary_bg = "#2d2d26"
+            p = DARK_PALETTE
         else:
-            bg = "#fafafa"           # Very light gray instead of pure white
-            fg = "#202020"           # Near-black text
-            panel_bg = "#f0f0f0"     # Light panel background
-            select_bg = "#e8f1fe"
-            select_fg = "#000000"
-            accent = "#6366f1"
-            accent_hover = "#818cf8"
-            accent_pressed = "#4f46e5"
-            entry_bg = "#ffffff"
-            entry_fg = "#202020"
-            disabled_fg = "#999999"
-            disabled_bg = "#e5e5e5"
-            border = "#cccccc"
-            hover_bg = "#f0f0f0"
-            secondary_bg = "#f0f0f0"
+            p = LIGHT_PALETTE
+
+        bg = p["bg"]
+        fg = p["fg"]
+        panel_bg = p["panel_bg"]
+        select_bg = p["select_bg"]
+        select_fg = p["select_fg"]
+        accent = p["accent"]
+        accent_hover = p["accent_hover"]
+        accent_pressed = p["accent_pressed"]
+        entry_bg = p["entry_bg"]
+        entry_fg = p["entry_fg"]
+        disabled_fg = p["disabled_fg"]
+        disabled_bg = p["disabled_bg"]
+        border = p["border"]
+        hover_bg = p["hover_bg"]
+        secondary_bg = p["secondary_bg"]
+        secondary_hover = p["secondary_hover"]
+        secondary_pressed = p["secondary_pressed"]
+        secondary_text = p["secondary_text"]
+        secondary_border = p["secondary_border"]
+        secondary_disabled_bg = p["secondary_disabled_bg"]
+        secondary_disabled_fg = p["secondary_disabled_fg"]
+        primary_disabled_bg = p["primary_disabled_bg"]
+        primary_disabled_fg = p["primary_disabled_fg"]
         self.root.configure(bg=bg)
 
         # Common widget styles
@@ -506,27 +555,27 @@ class App:
             background=[
                 ("active", accent_hover),
                 ("pressed", accent_pressed),
-                ("disabled", "#5a5a5a"),
+                ("disabled", primary_disabled_bg),
             ],
-            foreground=[("disabled", "#aaaaaa")],
+            foreground=[("disabled", primary_disabled_fg)],
         )
 
         # Secondary button - subtle outline style for secondary actions
         style.configure(
             "Secondary.TButton",
             background=secondary_bg,
-            foreground=fg,
-            bordercolor=border,
+            foreground=secondary_text,
+            bordercolor=secondary_border,
             focuscolor=border,
             borderwidth=1,
             relief="flat",
-            padding=(14, 6),
+            padding=(16, 8),
             font=("Segoe UI", 9, "bold"),
         )
         style.map(
             "Secondary.TButton",
-            background=[("active", hover_bg), ("pressed", select_bg)],
-            foreground=[("disabled", disabled_fg)],
+            background=[("active", secondary_hover), ("pressed", secondary_pressed)],
+            foreground=[("disabled", secondary_disabled_fg)],
             bordercolor=[("active", accent), ("pressed", accent)],
         )
 
